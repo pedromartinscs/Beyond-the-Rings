@@ -22,7 +22,7 @@ class Game:
 
         # Create a 2D array representing the map (you can later load this from a file or random generation)
         self.map = [[(x + y) % 2 for x in range(self.map_width)] for y in range(self.map_height)]  # Simple checkerboard pattern for testing
-
+        
         # Camera variables
         self.camera_x = 0
         self.camera_y = 0
@@ -31,26 +31,21 @@ class Game:
         self.camera_height = self.screen_height
 
     def render(self):
-        print("camera: " + str(self.camera_x) + ", " + str(self.camera_y))
-        print
         # Clear the screen before rendering
         self.screen.fill((0, 0, 0))  # Black background (or any color you prefer)
 
-        # Render only the visible portion of the map based on the camera position
-        for y in range(self.screen_height // self.tile_size + 1):  # Loop through the vertical tiles that fit
-            for x in range(self.screen_width // self.tile_size + 1):  # Loop through the horizontal tiles that fit
-                # Calculate the position of the tile relative to the camera
-                map_x = (x + self.camera_x // self.tile_size)
-                map_y = (y + self.camera_y // self.tile_size)
+        # Loop through the tiles in the map and draw only those that are visible on the screen
+        for y in range(self.map_height):  # Loop through the vertical tiles
+            for x in range(self.map_width):  # Loop through the horizontal tiles
 
-                # Ensure the tile is inside the map bounds
-                if map_x < self.map_width and map_y < self.map_height:
-                    # Calculate the screen position for the tile
-                    screen_x = x * self.tile_size - self.camera_x
-                    screen_y = y * self.tile_size - self.camera_y
-
-                    # Draw the tile using the correct image for the checkerboard pattern
-                    if (map_x + map_y) % 2 == 0:
+                # Calculate the screen position for the tile
+                screen_x = x * self.tile_size - self.camera_x
+                screen_y = y * self.tile_size - self.camera_y
+                
+                # Ensure the tile is inside the screen before drawing
+                if screen_x > -self.tile_size and screen_x < self.screen_width and screen_y > -self.tile_size and screen_y < self.screen_height:
+                    # Draw the correct tile based on the checkerboard pattern
+                    if self.map[x][y] == 0:
                         self.screen.blit(self.tile_image1, (screen_x, screen_y))
                     else:
                         self.screen.blit(self.tile_image2, (screen_x, screen_y))
