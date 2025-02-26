@@ -1,0 +1,11 @@
+https://freesound.org/people/EVRetro/sounds/583613/ -> 583613__evretro__8-bit-brisk-music-loop.wav
+https://freesound.org/people/josefpres/sounds/653795/ -> 653795__josefpres__8-bit-game-loop-004-simple-mix-1-short-120-bpm.wav
+https://freesound.org/people/josefpres/sounds/657664/ -> 657664__josefpres__8-bit-game-loop-011-simple-mix-3-short-120-bpm.wav
+https://freesound.org/people/SieuAmThanh/sounds/557631/ -> 557631__sieuamthanh__tam-xa-mai.aiff
+https://freesound.org/people/Cebuana/sounds/250754/ -> 250754__cebuana__one.mp3
+https://freesound.org/people/Bertsz/sounds/672781/ -> 672781__bertsz__cyberpunk_dump.flac
+https://freesound.org/people/Bertsz/sounds/672785/ -> 672785__bertsz__cyberpunk_trailer.flac
+https://freesound.org/people/Bertsz/sounds/672784/ -> 672784__bertsz__cyberpunk_retro.mp3
+https://freesound.org/people/Bertsz/sounds/672783/ -> 672783__bertsz__cyberpunk_metal.flac
+https://freesound.org/people/Bertsz/sounds/672782/ -> 672782__bertsz__cyberpunk_heist.mp3
+https://freesound.org/people/szegvari/sounds/611098/ -> 611098__szegvari__force-dance-orchestra-strings-brass-atmo-atmosphere-ambience-music-surround.wav
