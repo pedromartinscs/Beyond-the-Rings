@@ -1,13 +1,13 @@
 import pygame
 import math
 
-
 class Button:
-    def __init__(self, x, y, number, spacing, width, height, text, action=None):
+    def __init__(self, x, y, number, spacing, width, height, text, action=None, image_path=None):
         render_y = y + number * (height + spacing)
         self.rect = pygame.Rect(x, render_y, width, height)
         self.text = text
         self.action = action
+        self.image_path = image_path  # Path to the button image (optional)
         self.color = (0, 255, 255)  # Default button color (light cyan)
         self.hover_color = (0, 200, 200)  # Hover color (lighter cyan)
         self.clicked_color = (0, 150, 150)  # Clicked color (dark cyan)
@@ -21,8 +21,12 @@ class Button:
         self.text_rect = self.text_surface.get_rect(center=self.rect.center)
         self.is_hovered = False
         self.clicked_state = False
-        # Create the glow surface once
         self.glow_surface = pygame.Surface((self.glow_width, self.glow_height), pygame.SRCALPHA)
+        
+        # Load the image if provided
+        if self.image_path:
+            self.button_image = pygame.image.load(self.image_path)
+            self.button_image = pygame.transform.scale(self.button_image, (self.rect.width, self.rect.height))  # Scale image to button size
 
     def draw(self, screen):
         mouse_pos = pygame.mouse.get_pos()
@@ -56,18 +60,20 @@ class Button:
             glow_rect = self.glow_surface.get_rect(center=self.rect.center)
             screen.blit(self.glow_surface, glow_rect)  # Draw the glow
 
+            # Draw the button image
+            screen.blit(self.button_image, self.rect.topleft)
+
             if mouse_pressed[0]:  # Left-click pressed
                 self.clicked_state = True
-                pygame.draw.rect(screen, self.clicked_color, self.rect)  # Draw clicked color
             else:
                 self.clicked_state = False
-                pygame.draw.rect(screen, self.hover_color, self.rect)  # Draw hover color
         else:
             self.is_hovered = False
             self.clicked_state = False
-            pygame.draw.rect(screen, self.color, self.rect)  # Draw normal color
+            # Draw the button image when not hovered
+            screen.blit(self.button_image, self.rect.topleft)
 
-        # Draw the button text on top of the glow
+        # Draw the button text on top of the image (if desired)
         screen.blit(self.text_surface, self.text_rect)
 
     def is_clicked(self):
