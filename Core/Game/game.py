@@ -1,5 +1,6 @@
 import pygame
 import sys
+from Core.Game.panel import Panel
 
 class Game:
     def __init__(self, screen):
@@ -10,66 +11,77 @@ class Game:
         # Define the tile size (32x32 pixels)
         self.tile_size = 32
 
-        # Define the map size (for now we create a large map for testing)
+        # Define the map size
         self.map_width = 100  # 100 tiles wide
         self.map_height = 100  # 100 tiles tall
 
-        # Load the tile images
+        # Load tile images (assuming you have tile images in the Maps folder)
         self.tile_image1 = pygame.image.load("Maps\Common\Tiles\Tile1.png")
         self.tile_image1 = pygame.transform.scale(self.tile_image1, (self.tile_size, self.tile_size))
         self.tile_image2 = pygame.image.load("Maps\Common\Tiles\Tile2.png")
         self.tile_image2 = pygame.transform.scale(self.tile_image2, (self.tile_size, self.tile_size))
 
-        # Create a 2D array representing the map (you can later load this from a file or random generation)
-        self.map = [[(x + y) % 2 for x in range(self.map_width)] for y in range(self.map_height)]  # Simple checkerboard pattern for testing
-        
+        # Create a 2D array representing the map
+        self.map = [[(x + y) % 2 for x in range(self.map_width)] for y in range(self.map_height)]
+
         # Camera variables
         self.camera_x = 0
         self.camera_y = 0
-        self.camera_speed = 5  # Speed of camera movement when moving by mouse edge
+        self.camera_speed = 5
         self.camera_width = self.screen_width
         self.camera_height = self.screen_height
 
+        # Panel variables
+        self.panel = Panel(self.screen)
+        self.panel_visible = False  # Track panel visibility
+
     def render(self):
         # Clear the screen before rendering
-        self.screen.fill((0, 0, 0))  # Black background (or any color you prefer)
+        self.screen.fill((0, 0, 0))  # Black background
 
-        # Loop through the tiles in the map and draw only those that are visible on the screen
-        for y in range(self.map_height):  # Loop through the vertical tiles
-            for x in range(self.map_width):  # Loop through the horizontal tiles
-
-                # Calculate the screen position for the tile
+        # Render the map (visible tiles based on camera)
+        for y in range(self.map_height):
+            for x in range(self.map_width):
                 screen_x = x * self.tile_size - self.camera_x
                 screen_y = y * self.tile_size - self.camera_y
-                
-                # Ensure the tile is inside the screen before drawing
                 if screen_x > -self.tile_size and screen_x < self.screen_width and screen_y > -self.tile_size and screen_y < self.screen_height:
-                    # Draw the correct tile based on the checkerboard pattern
                     if self.map[x][y] == 0:
                         self.screen.blit(self.tile_image1, (screen_x, screen_y))
                     else:
                         self.screen.blit(self.tile_image2, (screen_x, screen_y))
+
+        # Render the panel (if visible)
+        self.panel.render()
 
     def handle_events(self, event):
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
 
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_SPACE:
+                # Toggle the panel visibility when space is pressed
+                if self.panel_visible:
+                    self.panel.hide()  # Hide the panel
+                else:
+                    self.panel.show()  # Show the panel
+                self.panel_visible = not self.panel_visible
+
     def update(self):
         # Update the camera position based on mouse position
         mouse_x, mouse_y = pygame.mouse.get_pos()
 
         # Check if the mouse is at the edge of the screen
-        if mouse_x < 10:  # Left edge
+        if mouse_x < 10:
             self.camera_x -= self.camera_speed
-        elif mouse_x > self.screen_width - 10:  # Right edge
+        elif mouse_x > self.screen_width - 10:
             self.camera_x += self.camera_speed
 
-        if mouse_y < 10:  # Top edge
+        if mouse_y < 10:
             self.camera_y -= self.camera_speed
-        elif mouse_y > self.screen_height - 10:  # Bottom edge
+        elif mouse_y > self.screen_height - 10:
             self.camera_y += self.camera_speed
 
-        # Ensure the camera doesn't move out of bounds (clamping the camera within the map)
+        # Ensure the camera doesn't move out of bounds
         self.camera_x = max(0, min(self.camera_x, self.map_width * self.tile_size - self.camera_width))
         self.camera_y = max(0, min(self.camera_y, self.map_height * self.tile_size - self.camera_height))

@@ -1,5 +1,4 @@
 import pygame
-
 from Core.Menu.main_menu import MainMenu
 
 
