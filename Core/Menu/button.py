@@ -2,31 +2,34 @@ import pygame
 import math
 
 class Button:
-    def __init__(self, x, y, number, spacing, width, height, text, action=None, image_path=None):
+    def __init__(self, x, y, number, spacing, width, height, text, action=None, image_path=None, glow_image_path=None):
         render_y = y + number * (height + spacing)
         self.rect = pygame.Rect(x, render_y, width, height)
         self.text = text
         self.action = action
         self.image_path = image_path  # Path to the button image (optional)
-        self.color = (0, 255, 255)  # Default button color (light cyan)
-        self.hover_color = (0, 200, 200)  # Hover color (lighter cyan)
-        self.clicked_color = (0, 150, 150)  # Clicked color (dark cyan)
-        self.glow_color = (238, 210, 10)  # Light yellow glow color
-        self.glow_alpha = 60  # Initial glow transparency
-        self.glow_speed = 10  # Higher speed = faster glow
-        self.glow_width = self.rect.width + 3  # Glow width larger than the button
-        self.glow_height = self.rect.height + 3  # Glow height larger than the button
+        self.glow_image_path = glow_image_path  # Path to the glow image (optional)
         self.font = pygame.font.Font(None, 36)
         self.text_surface = self.font.render(self.text, True, (0, 0, 0))
         self.text_rect = self.text_surface.get_rect(center=self.rect.center)
         self.is_hovered = False
         self.clicked_state = False
-        self.glow_surface = pygame.Surface((self.glow_width, self.glow_height), pygame.SRCALPHA)
         
-        # Load the image if provided
+        # Load the button image if provided
         if self.image_path:
             self.button_image = pygame.image.load(self.image_path)
             self.button_image = pygame.transform.scale(self.button_image, (self.rect.width, self.rect.height))  # Scale image to button size
+
+        # Load the glow image if provided
+        if self.glow_image_path:
+            self.glow_image = pygame.image.load(self.glow_image_path)
+            self.glow_image = pygame.transform.scale(self.glow_image, (self.rect.width, self.rect.height))  # Scale glow image to button size
+
+        # Initial glow parameters
+        self.glow_alpha = 200  # Initial glow transparency
+        self.glow_speed = 10  # Higher speed = faster glow
+        self.glow_width = self.rect.width + 3  # Glow width larger than the button
+        self.glow_height = self.rect.height + 3  # Glow height larger than the button
 
     def draw(self, screen):
         mouse_pos = pygame.mouse.get_pos()
@@ -47,18 +50,18 @@ class Button:
             self.glow_height = self.rect.height + 3 + int(abs(pulse_factor) * 5)
             
             # Calculate the glow transparency based on pulse factor
-            self.glow_alpha = 60 + int(abs(pulse_factor) * 20)  # You can tweak the alpha range (e.g., 60 to 90)
+            self.glow_alpha = 200 + int(abs(pulse_factor) * 20)  # You can tweak the alpha range (e.g., 60 to 90)
 
             # Ensure alpha stays within valid range (0 to 255)
             self.glow_alpha = min(255, max(0, self.glow_alpha))
 
-            # Resize the glow surface (using pygame.transform.scale to resize)
-            self.glow_surface = pygame.Surface((self.glow_width, self.glow_height), pygame.SRCALPHA)
-            self.glow_surface.fill((self.glow_color[0], self.glow_color[1], self.glow_color[2], self.glow_alpha))  # Glow with transparency
+            # Resize the glow image (using pygame.transform.scale to resize)
+            glow_scaled = pygame.transform.scale(self.glow_image, (self.glow_width, self.glow_height))
+            glow_scaled.set_alpha(self.glow_alpha)  # Apply transparency to glow image
 
             # Position the glow effect behind the button
-            glow_rect = self.glow_surface.get_rect(center=self.rect.center)
-            screen.blit(self.glow_surface, glow_rect)  # Draw the glow
+            glow_rect = glow_scaled.get_rect(center=self.rect.center)
+            screen.blit(glow_scaled, glow_rect)  # Draw the glow
 
             # Draw the button image
             screen.blit(self.button_image, self.rect.topleft)

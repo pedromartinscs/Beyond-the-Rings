@@ -26,7 +26,8 @@ class CreditsScreen:
             height=50, 
             text="Back", 
             action=self.go_back,
-            image_path="Images/menu_button.png"
+            image_path="Images/menu_button.png",
+            glow_image_path="Images/menu_button_glow.png"
         )
 
         # Load hover sound effect
