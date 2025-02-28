@@ -12,8 +12,8 @@ class Game:
         self.tile_size = 32
 
         # Define the map size
-        self.map_width = 100  # 100 tiles wide
-        self.map_height = 100  # 100 tiles tall
+        self.map_width = 120  # 100 tiles wide
+        self.map_height = 120  # 100 tiles tall
 
         # Load tile images (assuming you have tile images in the Maps folder)
         self.tile_image1 = pygame.image.load("Maps\Common\Tiles\Tile1.png")
@@ -23,6 +23,15 @@ class Game:
 
         # Create a 2D array representing the map
         self.map = [[(x + y) % 2 for x in range(self.map_width)] for y in range(self.map_height)]
+
+        # Create a surface to hold the entire map
+        self.map_surface = pygame.Surface((self.map_width * self.tile_size, self.map_height * self.tile_size))
+
+        # Pre-render the map onto the map_surface
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                tile = self.tile_image1 if self.map[x][y] == 0 else self.tile_image2
+                self.map_surface.blit(tile, (x * self.tile_size, y * self.tile_size))
 
         # Camera variables
         self.camera_x = 0
@@ -39,16 +48,9 @@ class Game:
         # Clear the screen before rendering
         self.screen.fill((0, 0, 0))  # Black background
 
-        # Render the map (visible tiles based on camera)
-        for y in range(self.map_height):
-            for x in range(self.map_width):
-                screen_x = x * self.tile_size - self.camera_x
-                screen_y = y * self.tile_size - self.camera_y
-                if screen_x > -self.tile_size and screen_x < self.screen_width and screen_y > -self.tile_size and screen_y < self.screen_height:
-                    if self.map[x][y] == 0:
-                        self.screen.blit(self.tile_image1, (screen_x, screen_y))
-                    else:
-                        self.screen.blit(self.tile_image2, (screen_x, screen_y))
+        # Render only the visible portion of the map (by blitting map_surface with camera offset)
+        camera_rect = pygame.Rect(self.camera_x, self.camera_y, self.camera_width, self.camera_height)
+        self.screen.blit(self.map_surface, (0, 0), camera_rect)
 
         # Render the panel (if visible)
         self.panel.render()

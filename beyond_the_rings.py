@@ -18,7 +18,7 @@ def main():
         game_context.handle_events()
         game_context.update()
         game_context.render()
-        pygame.display.flip()
+        pygame.display.update()
         pygame.time.Clock().tick(60)  # Maintain 60 FPS
 
     pygame.quit()
