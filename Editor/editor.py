@@ -413,40 +413,57 @@ class Editor:
               self.is_within_bounds(map_x + 1, map_y + 1) and self.map[map_y + 1][map_x + 1] in [0, 1, 4, 6, 8, 9, 10] and # Bottom-right is grass or shore with grass
               not (self.is_within_bounds(map_x - 1, map_y - 1) and self.map[map_y - 1][map_x - 1] in [0, 1])): # Top-left is not grass
             self.map[map_y][map_x] = 15  # shore-bottom-tip-right
+        elif (self.is_within_bounds(map_x + 1, map_y - 1) and self.map[map_y - 1][map_x + 1] in [2, 3] and # Top right is water
+              self.is_within_bounds(map_x - 1, map_y + 1) and self.map[map_y + 1][map_x - 1] in [2, 3] and # Bottom left is water
+              self.is_within_bounds(map_x - 1, map_y - 1) and self.map[map_y - 1][map_x - 1] in [0, 1] and # Top left is grass
+              self.is_within_bounds(map_x + 1, map_y + 1) and self.map[map_y + 1][map_x + 1] in [0, 1]): # Bottom right is grass
+            self.map[map_y][map_x] = 16 # shore-double-tip-topleft
+        elif (self.is_within_bounds(map_x - 1, map_y - 1) and self.map[map_y - 1][map_x - 1] in [2, 3] and # Top left is water
+              self.is_within_bounds(map_x + 1, map_y + 1) and self.map[map_y + 1][map_x + 1] in [2, 3] and # Bottom right is water
+              self.is_within_bounds(map_x + 1, map_y - 1) and self.map[map_y - 1][map_x + 1] in [0, 1] and # Top right is grass
+              self.is_within_bounds(map_x - 1, map_y + 1) and self.map[map_y + 1][map_x - 1] in [0, 1]): # Bottom left is grass
+            self.map[map_y][map_x] = 17 # shore-double-tip-topright
         elif (self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] not in [0, 1] and  # Below is not grass
               self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] not in [0, 1, 2, 3] and  # Left is not grass or water
               self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] not in [0, 1, 2, 3] and  # Right is not grass or water
               self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] in [0, 1, 5, 10, 11] and # Above is grass or shore with grass
-              not (self.map[map_y][map_x + 1] in [5, 10] and self.map[map_y + 1][map_x] in [7])):
+              not (self.map[map_y][map_x + 1] in [5, 10] and self.map[map_y + 1][map_x] in [7]) and
+              not (self.map[map_y][map_x - 1] in [5, 11] and self.map[map_y + 1][map_x] in [6])):
             self.map[map_y][map_x] = 4 # shore-top
         elif (self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] not in [0, 1] and  # Above is not grass
-                self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] not in [0, 1, 2, 3] and  # Left is not grass or water
-                self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] not in [0, 1, 2, 3] and  # Right is not grass or water
-                self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] in [0, 1, 4, 8, 9] and
-                not (self.map[map_y][map_x - 1] in [4, 9] and self.map[map_y - 1][map_x] in [6])):
+              self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] not in [0, 1, 2, 3] and  # Left is not grass or water
+              self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] not in [0, 1, 2, 3] and  # Right is not grass or water
+              self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] in [0, 1, 4, 8, 9] and
+              not (self.map[map_y][map_x - 1] in [4, 9] and self.map[map_y - 1][map_x] in [6]) and
+              not (self.map[map_y][map_x + 1] in [4, 8] and self.map[map_y - 1][map_x] in [7])):
             self.map[map_y][map_x] = 5 # shore-bottom
         elif (self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] not in [0, 1] and  # Right is not grass
               self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] not in [0, 1, 2, 3] and  # Above is not grass or water
               self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] not in [0, 1, 2, 3] and  # Below is not grass or water
               self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] in [0, 1, 7, 9, 11] and  # Left is something with grass on the right
-              not (self.map[map_y - 1][map_x] in [7, 11] and self.map[map_y][map_x + 1] in [4])):
+              not (self.map[map_y - 1][map_x] in [7, 11] and self.map[map_y][map_x + 1] in [4]) and
+              not (self.map[map_y + 1][map_x] in [7, 9] and self.map[map_y][map_x + 1] in [5])):
             self.map[map_y][map_x] = 6 # shore-left
         elif (self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] not in [0, 1] and  # Left is not grass
               self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] not in [0, 1, 2, 3] and  # Above is not grass or water
               self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] not in [0, 1, 2, 3] and  # Below is not grass or water
               self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] in [0, 1, 6, 8, 10] and  # Right is something with grass on the left
-              not (self.map[map_y + 1][map_x] in [6, 8] and self.map[map_y][map_x - 1] in [5])):
+              not (self.map[map_y + 1][map_x] in [6, 8] and self.map[map_y][map_x - 1] in [5]) and
+              not (self.map[map_y - 1][map_x] in [6, 10] and self.map[map_y][map_x - 1] in [4])):
             self.map[map_y][map_x] = 7 # shore-right
-        elif (self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] not in [0, 1, 2, 3] and  # Below is not grass or water
-              self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] not in [0, 1, 2, 3] and  # Right is not grass or water
-              self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] in [0, 1, 7, 9, 11] and  # Left is something with grass on the right
+        elif (self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] not in [0, 1, 2, 3] and  # Below is not grass or water AND
+              self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] not in [0, 1, 2, 3] and  # Right is not grass or water AND
+              ((self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] in [0, 1, 7, 9, 11]) or  # Left is something with grass on the right or...
+               (((self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] in [6]) and (self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] in [5])))) and #... an especific exception where its trapped AND
               ((self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] in [0, 1, 5, 10, 11]) or # Above is something with grass on the bottom or...
                 ((self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] in [7]) and (self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] in [4])))): #... an especific exception where its trapped with the above tile also wrong, and the right tile is an specific shore tile
             self.map[map_y][map_x] = 8 # shore-topleft
         elif (self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] not in [0, 1, 2, 3] and  # Below is not grass or water
               self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] not in [0, 1, 2, 3] and  # Left is not grass or water
-              self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] in [0, 1, 6, 8, 10] and  # Right is something with grass on the left
-              self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] in [0, 1, 5, 10, 11]): # Above is something with grass on the bottom
+              ((self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] in [0, 1, 6, 8, 10]) or  # Right is something with grass on the left or...
+               (((self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] in [7]) and (self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] in [5])))) and #... an especific exception where its trapped AND
+              ((self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] in [0, 1, 5, 10, 11]) or # Above is something with grass on the bottom or...
+               ((self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] in [6]) and (self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] in [4])))): #... an especific exception where its trapped with the above tile also wrong, and the left tile is an specific shore tile
             self.map[map_y][map_x] = 9 # shore-topright
         elif (self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] not in [0, 1, 2, 3] and # Above is not grass or water
               self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] not in [0, 1, 2, 3] and # Right is not grass or water
@@ -458,16 +475,6 @@ class Editor:
               self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] in [0, 1, 6, 8, 10] and # Right is something with grass on the left
               self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] in [0, 1, 4, 8, 9]): # Below is something with grass on the top
             self.map[map_y][map_x] = 11 # shore-bottomright
-        elif (self.is_within_bounds(map_x + 1, map_y - 1) and self.map[map_y - 1][map_x + 1] in [2, 3] and # Top right is water
-              self.is_within_bounds(map_x - 1, map_y + 1) and self.map[map_y + 1][map_x - 1] in [2, 3] and # Bottom left is water
-              self.is_within_bounds(map_x - 1, map_y - 1) and self.map[map_y - 1][map_x - 1] in [0, 1] and # Top left is grass
-              self.is_within_bounds(map_x + 1, map_y + 1) and self.map[map_y + 1][map_x + 1] in [0, 1]): # Bottom right is grass
-            self.map[map_y][map_x] = 16 # shore-double-tip-topleft
-        elif (self.is_within_bounds(map_x - 1, map_y - 1) and self.map[map_y - 1][map_x - 1] in [2, 3] and # Top left is water
-              self.is_within_bounds(map_x + 1, map_y + 1) and self.map[map_y + 1][map_x + 1] in [2, 3] and # Bottom right is water
-              self.is_within_bounds(map_x + 1, map_y - 1) and self.map[map_y - 1][map_x + 1] in [0, 1] and # Top right is grass
-              self.is_within_bounds(map_x - 1, map_y + 1) and self.map[map_y + 1][map_x - 1] in [0, 1]): # Bottom left is grass
-            self.map[map_y][map_x] = 17 # shore-double-tip-topright
     
     def get_surrounding_grass(self, map_x, map_y):
         grass_coords = []
