@@ -8,8 +8,8 @@ class Editor:
     # --- Initialization ---
     def __init__(self, screen):
         self.screen = screen
-        self.screen_width = screen.get_width() - 50      # Screen width with padding
-        self.screen_height = screen.get_height() - 50    # Screen height with padding
+        self.screen_width = screen.get_width() - 10      # Screen width with padding
+        self.screen_height = screen.get_height() - 10    # Screen height with padding
         
         # Tile and map setup
         self.tile_size = 32                              # Size of each tile (32x32 pixels)
@@ -118,9 +118,10 @@ class Editor:
         self.screen.fill((30, 30, 30))                   # Dark gray background
         
         # Define map area (grid on left side)
-        map_margin_right = 20
+        map_margin_right = 10
+        map_margin_bottom = 16  # Space for instructions and padding
         map_area_width = self.screen_width - self.palette_width - map_margin_right
-        map_area_height = self.screen_height - 40
+        map_area_height = self.screen_height - map_margin_bottom  # Map area should be smaller than screen height
         map_area_rect = pygame.Rect(0, 0, map_area_width, map_area_height)
         
         # Create a subsurface for the map to enforce clipping
@@ -175,10 +176,11 @@ class Editor:
         self.screen.blit(save_text, (self.save_button_rect.x + 5, self.save_button_rect.y + 5))
         self.screen.blit(load_text, (self.load_button_rect.x + 5, self.load_button_rect.y + 5))
         
-        # Display instructions
+        # Display instructions at the bottom of the screen
         instructions = "Left click: place tile; Right click: drag map; Click palette to select tile."
         inst_text = font.render(instructions, True, (255, 255, 255))
-        self.screen.blit(inst_text, (10, map_area_height + 10))
+        instruction_padding = 11  # Space from bottom of screen
+        self.screen.blit(inst_text, (10, self.screen_height - instruction_padding))
     
     # --- Event Handling ---
     def handle_events(self, event):
@@ -638,15 +640,31 @@ class Editor:
 # --- Main Execution ---
 if __name__ == "__main__":
     pygame.init()
-    screen = pygame.display.set_mode((1024, 768))
+    # Get screen info
+    screen_info = pygame.display.Info()
+    # Set window size to 90% of screen size for comfortable windowed mode
+    window_width = int(screen_info.current_w * 0.9)
+    window_height = int(screen_info.current_h * 0.9)
+    
+    # Create a resizable window with window controls
+    screen = pygame.display.set_mode((window_width, window_height), pygame.RESIZABLE)
     pygame.display.set_caption("Map Editor")
     editor = Editor(screen)
     clock = pygame.time.Clock()
     running = True
+    
     while running:
         for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.VIDEORESIZE:
+                # Handle window resize
+                screen = pygame.display.set_mode((event.w, event.h), pygame.RESIZABLE)
+                editor = Editor(screen)  # Reinitialize editor with new screen size
             editor.handle_events(event)
         editor.update()
         editor.render()
         pygame.display.flip()
         clock.tick(60)
+    
+    pygame.quit()
