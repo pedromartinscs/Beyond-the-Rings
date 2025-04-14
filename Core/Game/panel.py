@@ -8,6 +8,7 @@ class Panel:
         self.color = (50, 50, 50)  # Color of the panel
         self.visible = False  # Start with the panel hidden
         self.current_y = self.screen.get_height()  # Panel starts off-screen (at the bottom)
+        self.handle_height = 20  # Height of the visible handle when hidden
 
     def show(self):
         # Show the panel (slide it in)
@@ -16,6 +17,11 @@ class Panel:
     def hide(self):
         # Hide the panel (slide it out)
         self.visible = False
+
+    def is_handle_clicked(self, pos):
+        # Check if the click is within the handle area (top 20 pixels of the panel)
+        handle_rect = pygame.Rect(0, self.current_y, self.width, self.handle_height)
+        return handle_rect.collidepoint(pos)
 
     def animate_panel(self, target_y):
         # Smoothly animate the panel's Y position to the target Y position
@@ -31,5 +37,5 @@ class Panel:
             # Draw the panel at the current Y position
             self.animate_panel(self.screen.get_height() - self.height)
         else:
-            self.animate_panel(self.screen.get_height() - 20)
+            self.animate_panel(self.screen.get_height() - self.handle_height)
         pygame.draw.rect(self.screen, self.color, (0, self.current_y, self.width, self.height))

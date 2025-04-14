@@ -1,4 +1,6 @@
 https://freesound.org/people/Bertsz/sounds/672781/ -> 672781__bertsz__cyberpunk_dump.flac
+https://freesound.org/people/Bertsz/sounds/672782/ -> 672782__bertsz__cyberpunk_heist.mp3
+https://freesound.org/people/Bertsz/sounds/672784/ -> 672784__bertsz__cyberpunk_retro.mp3
 https://www.purple-planet.com/tracks/battle-lines -> Battle Lines.mp3
 https://www.purple-planet.com/tracks/battle-plan -> Battle Plan.mp3
 https://www.purple-planet.com/tracks/brave-new-age -> Brave New Age.mp3
