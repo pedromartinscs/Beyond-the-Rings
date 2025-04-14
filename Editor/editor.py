@@ -2,6 +2,7 @@ import pygame
 import sys
 import tkinter as tk
 from tkinter import filedialog
+import random
 
 # Main class for the map editor
 class Editor:
@@ -103,7 +104,7 @@ class Editor:
         # Palette buttons (Exit, Save, Load)
         self.exit_button_rect = pygame.Rect(
             self.screen_width - self.palette_width + self.palette_offset_x,
-            self.screen_height - 160,
+            self.screen_height - 80,
             100, 30
         )
         self.save_button_rect = pygame.Rect(
@@ -113,7 +114,26 @@ class Editor:
         )
         self.load_button_rect = pygame.Rect(
             self.screen_width - self.palette_width + self.palette_offset_x,
-            self.screen_height - 80,
+            self.screen_height - 160,
+            100, 30
+        )
+        
+        # Random buttons
+        self.rnd_grass_button_rect = pygame.Rect(
+            self.screen_width - self.palette_width + self.palette_offset_x,
+            self.screen_height - 240,
+            100, 30
+        )
+        self.rnd_water_button_rect = pygame.Rect(
+            self.screen_width - self.palette_width + self.palette_offset_x,
+            self.screen_height - 200,
+            100, 30
+        )
+        
+        # Clear map button
+        self.clear_map_button_rect = pygame.Rect(
+            self.screen_width - self.palette_width + self.palette_offset_x,
+            self.screen_height - 280,
             100, 30
         )
         
@@ -161,12 +181,27 @@ class Editor:
         
         # Render palette (only selectable tiles)
         palette_x = self.screen_width - self.palette_width + self.palette_offset_x
-        palette_y = 10
+        palette_y = 10  # Reset to original position
+        
         for i in range(self.selectable_tiles):
             rect = pygame.Rect(palette_x, palette_y + i * (self.tile_size + 10), self.tile_size, self.tile_size)
             self.screen.blit(self.tile_images[i], rect.topleft)
             if i == self.selected_tile:
                 pygame.draw.rect(self.screen, (255, 255, 0), rect, 3)
+        
+        # Draw random buttons
+        pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_grass_button_rect)
+        pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_water_button_rect)
+        pygame.draw.rect(self.screen, (0, 0, 0), self.clear_map_button_rect)
+        
+        # Render button text
+        font = pygame.font.Font(None, 24)
+        rnd_grass_text = font.render("Rnd grass", True, (255, 255, 255))
+        rnd_water_text = font.render("Rnd water", True, (255, 255, 255))
+        clear_map_text = font.render("Clear map", True, (255, 255, 255))
+        self.screen.blit(rnd_grass_text, (self.rnd_grass_button_rect.x + 5, self.rnd_grass_button_rect.y + 5))
+        self.screen.blit(rnd_water_text, (self.rnd_water_button_rect.x + 5, self.rnd_water_button_rect.y + 5))
+        self.screen.blit(clear_map_text, (self.clear_map_button_rect.x + 5, self.clear_map_button_rect.y + 5))
         
         # Draw palette buttons
         pygame.draw.rect(self.screen, (200, 0, 0), self.exit_button_rect)
@@ -174,7 +209,6 @@ class Editor:
         pygame.draw.rect(self.screen, (0, 0, 200), self.load_button_rect)
         
         # Render button text
-        font = pygame.font.Font(None, 24)
         exit_text = font.render("Exit", True, (255, 255, 255))
         save_text = font.render("Save Map", True, (255, 255, 255))
         load_text = font.render("Load Map", True, (255, 255, 255))
@@ -195,7 +229,8 @@ class Editor:
             sys.exit()
         
         # Define clickable palette areas
-        palette_buttons = [self.exit_button_rect, self.save_button_rect, self.load_button_rect]
+        palette_buttons = [self.exit_button_rect, self.save_button_rect, self.load_button_rect, 
+                         self.rnd_grass_button_rect, self.rnd_water_button_rect, self.clear_map_button_rect]
         for i in range(self.selectable_tiles):
             rect = pygame.Rect(
                 self.screen_width - self.palette_width + self.palette_offset_x,
@@ -232,6 +267,12 @@ class Editor:
                         self.save_map()
                     if self.load_button_rect.collidepoint(event.pos):
                         self.load_map()
+                    if self.rnd_grass_button_rect.collidepoint(event.pos):
+                        self.randomize_grass_tiles()
+                    if self.rnd_water_button_rect.collidepoint(event.pos):
+                        self.randomize_water_tiles()
+                    if self.clear_map_button_rect.collidepoint(event.pos):
+                        self.clear_map()
                 else:  # Map area
                     map_x = (mouse_x + self.camera_x) // self.tile_size
                     map_y = (mouse_y + self.camera_y) // self.tile_size
@@ -642,6 +683,30 @@ class Editor:
         print("Exiting editor...")
         pygame.quit()
         sys.exit()
+
+    def randomize_grass_tiles(self):
+        """Randomize all grass tiles (0-3) in the map"""
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                if self.map[y][x] in [0, 1, 2, 3]:  # If it's a grass tile
+                    self.map[y][x] = random.randint(0, 3)  # Replace with random grass tile
+                    # Update surrounding area to ensure proper shore tiles
+                    self.update_map_area(x, y)
+
+    def randomize_water_tiles(self):
+        """Randomize all water tiles (4-5) in the map"""
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                if self.map[y][x] in [4, 5]:  # If it's a water tile
+                    self.map[y][x] = random.randint(4, 5)  # Replace with random water tile
+                    # Update surrounding area to ensure proper shore tiles
+                    self.update_map_area(x, y)
+
+    def clear_map(self):
+        """Fill the entire map with grass tile 00000"""
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                self.map[y][x] = 0  # Set to grass tile 00000
 
 # --- Main Execution ---
 if __name__ == "__main__":
