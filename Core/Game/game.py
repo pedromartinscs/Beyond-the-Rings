@@ -26,7 +26,7 @@ class Game:
 
         # Load all tile images
         self.tiles = []
-        for i in range(18):  # Load tiles 00000.png to 00017.png
+        for i in range(20):  # Load tiles 00000.png to 00019.png
             try:
                 tile_path = f"Maps/Common/Tiles/{i:05d}.png"
                 tile_image = pygame.image.load(tile_path)

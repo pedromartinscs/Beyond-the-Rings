@@ -130,8 +130,8 @@ class Editor:
             100, 30
         )
         
-        # Clear map button
-        self.clear_map_button_rect = pygame.Rect(
+        # Random map button
+        self.rnd_map_button_rect = pygame.Rect(
             self.screen_width - self.palette_width + self.palette_offset_x,
             self.screen_height - 280,
             100, 30
@@ -192,16 +192,16 @@ class Editor:
         # Draw random buttons
         pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_grass_button_rect)
         pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_water_button_rect)
-        pygame.draw.rect(self.screen, (0, 0, 0), self.clear_map_button_rect)
+        pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_map_button_rect)
         
         # Render button text
         font = pygame.font.Font(None, 24)
         rnd_grass_text = font.render("Rnd grass", True, (255, 255, 255))
         rnd_water_text = font.render("Rnd water", True, (255, 255, 255))
-        clear_map_text = font.render("Clear map", True, (255, 255, 255))
+        rnd_map_text = font.render("Rnd map", True, (255, 255, 255))
         self.screen.blit(rnd_grass_text, (self.rnd_grass_button_rect.x + 5, self.rnd_grass_button_rect.y + 5))
         self.screen.blit(rnd_water_text, (self.rnd_water_button_rect.x + 5, self.rnd_water_button_rect.y + 5))
-        self.screen.blit(clear_map_text, (self.clear_map_button_rect.x + 5, self.clear_map_button_rect.y + 5))
+        self.screen.blit(rnd_map_text, (self.rnd_map_button_rect.x + 5, self.rnd_map_button_rect.y + 5))
         
         # Draw palette buttons
         pygame.draw.rect(self.screen, (200, 0, 0), self.exit_button_rect)
@@ -230,7 +230,7 @@ class Editor:
         
         # Define clickable palette areas
         palette_buttons = [self.exit_button_rect, self.save_button_rect, self.load_button_rect, 
-                         self.rnd_grass_button_rect, self.rnd_water_button_rect, self.clear_map_button_rect]
+                         self.rnd_grass_button_rect, self.rnd_water_button_rect, self.rnd_map_button_rect]
         for i in range(self.selectable_tiles):
             rect = pygame.Rect(
                 self.screen_width - self.palette_width + self.palette_offset_x,
@@ -271,8 +271,8 @@ class Editor:
                         self.randomize_grass_tiles()
                     if self.rnd_water_button_rect.collidepoint(event.pos):
                         self.randomize_water_tiles()
-                    if self.clear_map_button_rect.collidepoint(event.pos):
-                        self.clear_map()
+                    if self.rnd_map_button_rect.collidepoint(event.pos):
+                        self.randomize_map()
                 else:  # Map area
                     map_x = (mouse_x + self.camera_x) // self.tile_size
                     map_y = (mouse_y + self.camera_y) // self.tile_size
@@ -658,7 +658,7 @@ class Editor:
                         for j in range(0, len(line), 7):
                             tile_str = line[j:j + 7]
                             if (len(tile_str) != 7 or tile_str[0] != '[' or tile_str[6] != ']' or
-                                not tile_str[1:6].isdigit() or int(tile_str[1:6]) > 19):
+                                not tile_str[1:6].isdigit() or int(tile_str[1:6]) > 19 or int(tile_str[1:6]) < 0):
                                 print(f"Error: Invalid tile format '{tile_str}' at row {i}, col {j // 7}. Defaulting to [00000].")
                                 row.append(0)  # Default to grass on error
                             else:
@@ -702,11 +702,33 @@ class Editor:
                     # Update surrounding area to ensure proper shore tiles
                     self.update_map_area(x, y)
 
-    def clear_map(self):
-        """Fill the entire map with grass tile 00000"""
+    def randomize_map(self):
+        """Generate a random map with water tiles and proper shore transitions"""
+        # First, clear the map with grass
         for y in range(self.map_height):
             for x in range(self.map_width):
                 self.map[y][x] = 0  # Set to grass tile 00000
+        
+        # First pass: 3% chance for water tiles
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                if random.random() < 0.03:  # 3% chance
+                    # Temporarily change selected tile to water
+                    old_selected = self.selected_tile
+                    self.selected_tile = random.randint(4, 5)  # Random water tile
+                    self.place_tile(x, y)  # This will handle all the shore tile logic
+                    self.selected_tile = old_selected  # Restore original selection
+        
+        # Second pass: 10% chance for shore tiles to become water
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                if self.map[y][x] in [6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:  # If it's a shore tile
+                    if random.random() < 0.10:  # 10% chance
+                        # Temporarily change selected tile to water
+                        old_selected = self.selected_tile
+                        self.selected_tile = random.randint(4, 5)  # Random water tile
+                        self.place_tile(x, y)  # This will handle all the shore tile logic
+                        self.selected_tile = old_selected  # Restore original selection
 
 # --- Main Execution ---
 if __name__ == "__main__":
