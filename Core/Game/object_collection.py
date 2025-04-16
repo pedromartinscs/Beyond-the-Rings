@@ -23,13 +23,14 @@ class ObjectCollection:
                 for filename in os.listdir(type_path):
                     if filename.endswith(".png"):
                         try:
-                            # Extract the number from the filename (format: type00000.png)
+                            # Extract the number from the filename (format: tree00000.png)
                             number_str = filename[len(object_type.lower()):-4]
                             if number_str.isdigit():  # Check if it's a valid number
                                 number = int(number_str)
                                 
-                                # Load the image
-                                image = pygame.image.load(os.path.join(type_path, filename))
+                                # Load the image and convert it for proper transparency
+                                image_path = os.path.join(type_path, filename)
+                                image = pygame.image.load(image_path).convert_alpha()
                                 
                                 # Determine object size based on image dimensions
                                 width, height = image.get_size()
@@ -52,10 +53,8 @@ class ObjectCollection:
                                     'size': 'large' if is_large else 'small'
                                 })
                         except ValueError:
-                            print(f"Warning: Could not parse number from filename: {filename}")
                             continue
                         except pygame.error as e:
-                            print(f"Warning: Could not load image {filename}: {e}")
                             continue
                 
                 # Sort objects by their ID
@@ -73,16 +72,23 @@ class ObjectCollection:
             return (self.small_objects.get(object_type, []) + 
                    self.large_objects.get(object_type, []))
 
-    def get_object(self, object_type, object_id):
-        """Get a specific object by type and ID"""
-        # Check small objects first
-        for obj in self.small_objects.get(object_type, []):
-            if obj['id'] == object_id:
-                return obj
-        # Then check large objects
-        for obj in self.large_objects.get(object_type, []):
-            if obj['id'] == object_id:
-                return obj
+    def get_object(self, obj_type, obj_id, size='small'):
+        """Get an object by its type and ID.
+        Args:
+            obj_type (str): The type of object (e.g., "Trees")
+            obj_id (int): The ID of the object
+            size (str): The size of the object ('small' or 'large')
+        Returns:
+            pygame.Surface: The object's image, or None if not found
+        """
+        if size == 'small':
+            objects = self.small_objects.get(obj_type, [])
+        else:
+            objects = self.large_objects.get(obj_type, [])
+        
+        for obj in objects:
+            if obj['id'] == obj_id:
+                return obj['image']
         return None
 
     def get_total_objects(self, size=None):

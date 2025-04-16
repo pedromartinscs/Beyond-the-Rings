@@ -1,9 +1,14 @@
-import pygame
+import os
 import sys
+# Add the parent directory to the Python path
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import pygame
 import tkinter as tk
 from tkinter import filedialog
 import random
-from object_collection import ObjectCollection
+from Core.Game.object_collection import ObjectCollection
+import tkinter.messagebox as messagebox
 
 # Main class for the map editor
 class Editor:
@@ -227,9 +232,17 @@ class Editor:
             obj_y = obj['y'] * self.tile_size - self.camera_y
             
             if -self.tile_size <= obj_x <= map_area_width and -self.tile_size <= obj_y <= map_area_height:
-                object_data = self.object_collection.get_object(obj['type'], obj['id'])
-                if object_data:
-                    map_surface.blit(object_data['image'], (obj_x, obj_y))
+                # Get the object image with correct size
+                obj_type = obj['type']
+                obj_id = obj['id']
+                obj_size = 'large' if obj['offset'] == 32 else 'small'
+                obj_img = self.object_collection.get_object(obj_type, obj_id, obj_size)
+                
+                if obj_img:
+                    # Calculate position with offset
+                    screen_x = obj_x - (obj['offset'] - self.tile_size // 2)
+                    screen_y = obj_y - (obj['offset'] - self.tile_size // 2)
+                    map_surface.blit(obj_img, (screen_x, screen_y))
         
         # Render tile palette (2x4 grid) - only show first 6 tiles
         palette_x = self.screen_width - self.palette_width + self.palette_offset_x
@@ -532,14 +545,18 @@ class Editor:
                         if self.selected_object:
                             # Check if the position is valid before placing the object
                             if self.is_valid_object_position(map_x, map_y):
-                                # Place object
+                                # Calculate offset based on object size
+                                offset = 16 if self.selected_object['size'] == 'small' else 32
+                                
+                                # Place object with offset
                                 self.objects.append({
                                     'x': map_x,
                                     'y': map_y,
                                     'type': self.selected_object_type,
                                     'id': self.selected_object['id'],
                                     'health': 500 if self.selected_object_type == "Trees" else 0,
-                                    'z_index': 1 if self.selected_object_type == "Trees" else 0
+                                    'z_index': 1 if self.selected_object_type == "Trees" else 0,
+                                    'offset': offset  # Store the offset for rendering
                                 })
                             else:
                                 print("Cannot place objects on water or shore tiles!")
@@ -898,8 +915,8 @@ class Editor:
         root = tk.Tk()
         root.withdraw()
         file_path = filedialog.asksaveasfilename(
-            defaultextension=".txt",
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            defaultextension=".map",
+            filetypes=[("Map files", "*.map"), ("All files", "*.*")],
             title="Save Map"
         )
         if file_path:
@@ -928,105 +945,91 @@ class Editor:
         root = tk.Tk()
         root.withdraw()
         file_path = filedialog.askopenfilename(
-            filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
+            defaultextension=".map",
+            filetypes=[("Map files", "*.map"), ("All files", "*.*")],
             title="Load Map"
         )
-        if file_path:
-            try:
-                with open(file_path, 'r') as f:
-                    lines = [line.strip() for line in f.readlines() if line.strip() and not line.strip().startswith('#')]
-                    
-                    if not lines or len(lines) < 2:
-                        print("Error: File is empty or missing data.")
-                        return
-                    
-                    # Parse dimensions from first line
-                    width, height = map(int, lines[0].split())
-                    print(f"Loading map with dimensions: {width}x{height}")
-                    
-                    if width != self.map_width or height != self.map_height:
-                        print(f"Warning: File dimensions ({width}x{height}) do not match editor dimensions ({self.map_width}x{self.map_height}). Loading may fail.")
-                        return
-                    
-                    # Read map tiles
-                    self.map = []
-                    for y in range(height):
-                        if y + 1 >= len(lines):
-                            print(f"Error: Missing row {y} in map data.")
-                            return
-                        
-                        # Extract tile numbers from [00000] format
-                        tiles = []
-                        line = lines[y + 1]
-                        i = 0
-                        while i < len(line):
-                            if line[i] == '[':
-                                # Find the closing bracket
-                                end = line.find(']', i)
-                                if end != -1:
-                                    # Extract the number between brackets
-                                    tile_num = int(line[i+1:end])
-                                    tiles.append(tile_num)
-                                    i = end + 1
-                                else:
-                                    i += 1
-                            else:
-                                i += 1
-                        
-                        if len(tiles) != width:
-                            print(f"Error: Row {y} has {len(tiles)} tiles, expected {width}.")
-                            return
-                        
-                        self.map.append(tiles)
-                    
-                    # Read objects (if any)
-                    self.objects = []
-                    for line in lines[height + 1:]:
-                        # Extract object data from [x][y][type][id][health][z-index] format
-                        obj_data = []
-                        i = 0
-                        while i < len(line):
-                            if line[i] == '[':
-                                end = line.find(']', i)
-                                if end != -1:
-                                    data = line[i+1:end]
-                                    obj_data.append(data)
-                                    i = end + 1
-                                else:
-                                    i += 1
-                            else:
-                                i += 1
-                        
-                        if len(obj_data) != 6:
-                            print(f"Error: Invalid object format: {line}")
-                            continue
-                        
-                        try:
-                            x = int(obj_data[0])
-                            y = int(obj_data[1])
-                            obj_type = obj_data[2]
-                            obj_id = int(obj_data[3])
-                            health = int(obj_data[4])
-                            z_index = int(obj_data[5])
-                            
-                            if 0 <= x < width and 0 <= y < height:
-                                self.objects.append({
-                                    'x': x,
-                                    'y': y,
-                                    'type': obj_type,
-                                    'id': obj_id,
-                                    'health': health,
-                                    'z_index': z_index
-                                })
-                            else:
-                                print(f"Warning: Object at invalid coordinates ({x}, {y})")
-                        except ValueError as e:
-                            print(f"Error parsing object data: {e}")
+        if not file_path:
+            root.destroy()
+            return
+
+        try:
+            with open(file_path, 'r') as f:
+                lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
                 
-                print(f"Successfully loaded map with {len(self.objects)} objects")
-            except Exception as e:
-                print(f"Error loading map: {e}")
-        root.destroy()
+                # Read dimensions
+                dimensions = lines[0].split()
+                if len(dimensions) != 2:
+                    raise ValueError("Invalid dimensions format")
+                width, height = map(int, dimensions)
+                
+                # Validate dimensions
+                if width != self.map_width or height != self.map_height:
+                    raise ValueError(f"Map dimensions ({width}x{height}) do not match editor dimensions ({self.map_width}x{self.map_height})")
+                
+                # Read map tiles
+                self.map = []  # Changed from map_data to map
+                for i in range(1, height + 1):
+                    row = []
+                    for j in range(width):
+                        # Extract tile number from [00000] format
+                        tile_str = lines[i][j * 7:(j + 1) * 7]  # Each tile is 7 chars: [00000]
+                        tile_num = int(tile_str[1:-1])  # Remove brackets and convert to int
+                        row.append(tile_num)
+                    self.map.append(row)
+                
+                # Read objects
+                self.objects = []
+                for line in lines[height + 1:]:
+                    # Extract object data from [x][y][type][id][health][z-index] format
+                    obj_data = []
+                    i = 0
+                    while i < len(line):
+                        if line[i] == '[':
+                            end = line.find(']', i)
+                            if end != -1:
+                                data = line[i+1:end]
+                                obj_data.append(data)
+                                i = end + 1
+                            else:
+                                i += 1
+                        else:
+                            i += 1
+                    
+                    if len(obj_data) != 6:
+                        raise ValueError(f"Invalid object format: {line}")
+                    
+                    x, y = map(int, obj_data[:2])
+                    obj_type = obj_data[2]
+                    obj_id = int(obj_data[3])
+                    health = int(obj_data[4])
+                    z_index = int(obj_data[5])
+                    
+                    # Get the object to determine its size and calculate offset
+                    obj = self.object_collection.get_object(obj_type, obj_id, 'small')
+                    if obj is None:
+                        obj = self.object_collection.get_object(obj_type, obj_id, 'large')
+                        offset = 32  # Large object
+                    else:
+                        offset = 16  # Small object
+                    
+                    self.objects.append({
+                        'x': x,
+                        'y': y,
+                        'type': obj_type,
+                        'id': obj_id,
+                        'health': health,
+                        'z_index': z_index,
+                        'offset': offset
+                    })
+                
+                print(f"Map loaded successfully with {len(self.objects)} objects")
+                
+        except Exception as e:
+            print(f"Error loading map: {e}")
+            messagebox.showerror("Error", f"Failed to load map: {e}")
+        finally:
+            root.destroy()
 
     # --- Exit Function ---
     def exit_editor(self):
@@ -1054,6 +1057,9 @@ class Editor:
 
     def randomize_map(self):
         """Generate a random map with water tiles and proper shore transitions"""
+        # Clear all existing objects
+        self.objects = []
+        
         # First, clear the map with grass
         for y in range(self.map_height):
             for x in range(self.map_width):
@@ -1079,6 +1085,9 @@ class Editor:
                         self.selected_tile = random.randint(4, 5)  # Random water tile
                         self.place_tile(x, y)  # This will handle all the shore tile logic
                         self.selected_tile = old_selected  # Restore original selection
+        
+        # Generate random forrests after the map is created
+        self.randomize_forrest()
 
     def is_valid_object_position(self, map_x, map_y):
         """Check if an object can be placed at the given position.
@@ -1097,6 +1106,58 @@ class Editor:
                 return False
         
         return True  # Position is valid (grass tile and no existing object)
+
+    def randomize_forrest(self):
+        """Generate random forrests on the map using a recursive approach"""
+        # Get all available large tree objects
+        trees = self.object_collection.get_objects_by_type("Trees", 'large')
+        if not trees:
+            print("No large tree objects available!")
+            return
+        
+        # Track visited tiles to avoid infinite recursion
+        visited = set()
+        
+        def place_tree_recursive(x, y, depth=0):
+            # Base cases
+            if depth > 3:  # Depth limit
+                return
+            if (x, y) in visited:
+                return
+            if not self.is_valid_object_position(x, y):
+                return
+            
+            # Mark as visited
+            visited.add((x, y))
+            
+            # Place a random large tree
+            tree = random.choice(trees)
+            self.objects.append({
+                'x': x,
+                'y': y,
+                'type': "Trees",
+                'id': tree['id'],
+                'health': 500,
+                'z_index': 1,
+                'offset': 32  # Large object offset
+            })
+            
+            # Check surrounding tiles
+            directions = [(-1, -1), (0, -1), (1, -1), (-1, 0), (1, 0), (-1, 1), (0, 1), (1, 1)]
+            for dx, dy in directions:
+                new_x, new_y = x + dx, y + dy
+                if random.random() < 0.20:  # 20% chance for each surrounding tile
+                    place_tree_recursive(new_x, new_y, depth + 1)
+        
+        # First pass: place seed trees
+        for y in range(self.map_height):
+            for x in range(self.map_width):
+                if self.map[y][x] in [0, 1, 2, 3]:  # Grass tile
+                    if self.is_valid_object_position(x, y):  # No existing object
+                        if random.random() < 0.02:  # 2% chance for seed
+                            place_tree_recursive(x, y)
+        
+        print(f"Generated forrest with {len(visited)} trees")
 
 # --- Main Execution ---
 if __name__ == "__main__":

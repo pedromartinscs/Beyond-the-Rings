@@ -1,7 +1,9 @@
 import pygame
 import sys
+import os
 from Core.Game.panel import Panel
 from Core.Game.vertical_panel import VerticalPanel
+from Core.Game.object_collection import ObjectCollection
 
 class Game:
     def __init__(self, screen):
@@ -24,14 +26,17 @@ class Game:
         # Define the tile size (32x32 pixels)
         self.tile_size = 32
 
-        # Load all tile images
-        self.tiles = []
+        # Load and cache tile images
+        self.tile_cache = {}  # Cache for tile images
+        self.tiles = []  # List of cached tile surfaces
         for i in range(20):  # Load tiles 00000.png to 00019.png
             try:
                 tile_path = f"Maps/Common/Tiles/{i:05d}.png"
-                tile_image = pygame.image.load(tile_path)
-                tile_image = pygame.transform.scale(tile_image, (self.tile_size, self.tile_size))
-                self.tiles.append(tile_image)
+                if tile_path not in self.tile_cache:
+                    tile_image = pygame.image.load(tile_path)
+                    tile_image = pygame.transform.scale(tile_image, (self.tile_size, self.tile_size))
+                    self.tile_cache[tile_path] = tile_image
+                self.tiles.append(self.tile_cache[tile_path])
             except pygame.error as e:
                 print(f"Error loading tile {i:05d}.png: {e}")
                 # If a tile fails to load, use a default colored surface
@@ -39,8 +44,13 @@ class Game:
                 default_tile.fill((i * 10, i * 10, i * 10))  # Different shade for each missing tile
                 self.tiles.append(default_tile)
 
+        # Initialize object collection before loading map
+        self.object_collection = ObjectCollection()
+        self.objects = []  # Will be populated in load_map
+
         # Load the map from file
-        self.map = self.load_map("C:\Projetos\Personal\Github\Beyond-the-Rings\Maps\Battle\map.txt")
+        map_path = os.path.join("Maps", "Battle", "map.map")
+        self.map = self.load_map(map_path)
         self.map_width = len(self.map[0]) if self.map else 120
         self.map_height = len(self.map) if self.map else 120
 
@@ -84,6 +94,21 @@ class Game:
         self.vertical_panel = VerticalPanel(self.screen, self)  # Pass self to access minimap
         self.panel_visible = False  # Track bottom panel visibility
         self.vertical_panel_visible = False  # Track vertical panel visibility
+
+        # Add object rendering optimization variables
+        self.visible_objects_cache = []
+        self.last_camera_x = 0
+        self.last_camera_y = 0
+        self.camera_moved = True
+
+        # Add dirty rectangle optimization variables
+        self.dirty_rects = []  # List of rectangles that need updating
+        self.last_camera_pos = (0, 0)  # Track last camera position
+        self.visible_area = None  # Current visible area rectangle
+        self.background_surface = pygame.Surface((self.screen_width, self.screen_height))
+        self.background_surface.fill((0, 0, 0))  # Black background
+
+        print(f"Loaded {len(self.tile_cache)} unique tile images")
 
     def load_map(self, file_path):
         try:
@@ -132,7 +157,7 @@ class Game:
                 # Read objects (if any)
                 self.objects = []
                 for line in lines[height + 1:]:
-                    # Extract object data from [x][y][name][life][z-index] format
+                    # Extract object data from [x][y][type][id][health][z-index] format
                     obj_data = []
                     i = 0
                     while i < len(line):
@@ -147,31 +172,40 @@ class Game:
                         else:
                             i += 1
                     
-                    if len(obj_data) != 5:
-                        print(f"Warning: Invalid object format: {line}")
+                    if len(obj_data) != 6:
                         continue
                     
                     try:
                         x = int(obj_data[0])
                         y = int(obj_data[1])
-                        name = obj_data[2]
-                        life = int(obj_data[3])
-                        z_index = int(obj_data[4])
+                        obj_type = obj_data[2]
+                        obj_id = int(obj_data[3])
+                        health = int(obj_data[4])
+                        z_index = int(obj_data[5])
                         
                         if 0 <= x < width and 0 <= y < height:
-                            self.objects.append({
-                                'x': x,
-                                'y': y,
-                                'name': name,
-                                'life': life,
-                                'z_index': z_index
-                            })
-                        else:
-                            print(f"Warning: Object at invalid coordinates ({x}, {y})")
+                            # Try to get the object as small first, then large
+                            obj_image = self.object_collection.get_object(obj_type, obj_id, 'small')
+                            offset = 16
+                            
+                            if obj_image is None:
+                                obj_image = self.object_collection.get_object(obj_type, obj_id, 'large')
+                                offset = 32
+                            
+                            if obj_image:
+                                self.objects.append({
+                                    'x': x,
+                                    'y': y,
+                                    'type': obj_type,
+                                    'id': obj_id,
+                                    'health': health,
+                                    'z_index': z_index,
+                                    'image': obj_image,
+                                    'offset': offset
+                                })
                     except ValueError as e:
                         print(f"Error parsing object data: {e}")
                 
-                print(f"Successfully loaded map with {len(self.objects)} objects")
                 return map_data
                 
         except FileNotFoundError:
@@ -262,24 +296,17 @@ class Game:
         self.camera_y = max(0, min(world_y - self.camera_height // 2,
                                  self.map_height * self.tile_size - self.camera_height))
 
-    def render(self):
-        # Clear the screen before rendering
-        self.screen.fill((0, 0, 0))  # Black background
-
-        # Render only the visible portion of the map (by blitting map_surface with camera offset)
-        camera_rect = pygame.Rect(self.camera_x, self.camera_y, self.camera_width, self.camera_height)
-        self.screen.blit(self.map_surface, (0, 0), camera_rect)
-
-        # Render the minimap
-        self.update_minimap()
-        self.screen.blit(self.minimap_surface, (self.minimap_x, self.minimap_y))
-
-        # Render the panels
-        self.vertical_panel.render()
-        self.panel.render()
+    def update_visible_area(self):
+        """Update the visible area rectangle based on camera position"""
+        self.visible_area = pygame.Rect(
+            self.camera_x,
+            self.camera_y,
+            self.camera_width,
+            self.camera_height
+        )
 
     def update(self):
-        # Update the camera position based on mouse position
+        # Get mouse position once
         mouse_x, mouse_y = pygame.mouse.get_pos()
 
         # Define the edge detection area and speed
@@ -287,37 +314,147 @@ class Game:
         base_speed = self.camera_speed
         edge_speed = base_speed * 2  # Double speed at edges
 
-        # Check if the mouse is at the edge of the screen and apply appropriate speed
+        # Calculate camera movement
+        dx = 0
+        dy = 0
+
+        # Horizontal movement
         if mouse_x < edge_area:
-            self.camera_x -= edge_speed
+            dx = -edge_speed
         elif mouse_x > self.screen_width - edge_area:
-            self.camera_x += edge_speed
-        else:
-            # If mouse is near the edge but not at it, use base speed
-            if mouse_x < edge_area * 2:
-                self.camera_x -= base_speed
-            elif mouse_x > self.screen_width - edge_area * 2:
-                self.camera_x += base_speed
+            dx = edge_speed
+        elif mouse_x < edge_area * 2:
+            dx = -base_speed
+        elif mouse_x > self.screen_width - edge_area * 2:
+            dx = base_speed
 
+        # Vertical movement
         if mouse_y < edge_area:
-            self.camera_y -= edge_speed
+            dy = -edge_speed
         elif mouse_y > self.screen_height - edge_area:
-            self.camera_y += edge_speed
-        else:
-            # If mouse is near the edge but not at it, use base speed
-            if mouse_y < edge_area * 2:
-                self.camera_y -= base_speed
-            elif mouse_y > self.screen_height - edge_area * 2:
-                self.camera_y += base_speed
+            dy = edge_speed
+        elif mouse_y < edge_area * 2:
+            dy = -base_speed
+        elif mouse_y > self.screen_height - edge_area * 2:
+            dy = edge_speed
 
-        # Ensure the camera doesn't move out of bounds
-        self.camera_x = max(0, min(self.camera_x, self.map_width * self.tile_size - self.camera_width))
-        self.camera_y = max(0, min(self.camera_y, self.map_height * self.tile_size - self.camera_height))
+        # Update camera position
+        if dx != 0 or dy != 0:
+            old_camera_x = self.camera_x
+            old_camera_y = self.camera_y
+            self.camera_x = max(0, min(self.camera_x + dx, 
+                                     self.map_width * self.tile_size - self.camera_width))
+            self.camera_y = max(0, min(self.camera_y + dy,
+                                     self.map_height * self.tile_size - self.camera_height))
+            # Set camera_moved if the position actually changed
+            if old_camera_x != self.camera_x or old_camera_y != self.camera_y:
+                self.camera_moved = True
 
         # Update panel animations and check for screen transitions
         next_screen = self.vertical_panel.update()
         if next_screen:
             return next_screen
+
+    def update_visible_objects(self):
+        """Update the list of visible objects only when camera moves significantly"""
+        if not self.camera_moved:
+            return
+
+        self.visible_objects_cache = []
+        
+        # Calculate visible area in world coordinates with padding
+        visible_left = self.camera_x - 100  # Add padding to ensure objects are visible when partially off-screen
+        visible_right = self.camera_x + self.screen_width + 100
+        visible_top = self.camera_y - 100
+        visible_bottom = self.camera_y + self.screen_height + 100
+        
+        for obj in self.objects:
+            # Calculate object's world position in pixels
+            obj_world_x = obj['x'] * self.tile_size
+            obj_world_y = obj['y'] * self.tile_size
+            
+            # Get object dimensions
+            obj_width = obj['image'].get_width()
+            obj_height = obj['image'].get_height()
+            
+            # Calculate object's screen position
+            obj_screen_x = obj_world_x - self.camera_x
+            obj_screen_y = obj_world_y - self.camera_y
+            
+            # Check if object is in view with padding
+            if (visible_left - obj_width <= obj_world_x <= visible_right + obj_width and 
+                visible_top - obj_height <= obj_world_y <= visible_bottom + obj_height):
+                self.visible_objects_cache.append({
+                    'obj': obj,
+                    'screen_x': obj_screen_x - (obj['offset'] - self.tile_size // 2),
+                    'screen_y': obj_screen_y - (obj['offset'] - self.tile_size // 2)
+                })
+
+        # Sort visible objects by z-index once
+        self.visible_objects_cache.sort(key=lambda x: x['obj']['z_index'])
+        self.camera_moved = False
+
+    def render(self):
+        # Clear the screen before rendering
+        self.screen.fill((0, 0, 0))  # Black background
+
+        # Calculate visible area in tiles
+        start_tile_x = max(0, self.camera_x // self.tile_size)
+        start_tile_y = max(0, self.camera_y // self.tile_size)
+        end_tile_x = min(self.map_width, start_tile_x + (self.camera_width // self.tile_size) + 2)
+        end_tile_y = min(self.map_height, start_tile_y + (self.camera_height // self.tile_size) + 2)
+
+        # Clear dirty rectangles from last frame
+        self.dirty_rects = []
+
+        # Add the entire visible area to dirty rects if camera moved
+        if self.camera_moved:
+            self.dirty_rects.append(pygame.Rect(0, 0, self.screen_width, self.screen_height))
+            # Update visible objects when camera moves
+            self.update_visible_objects()
+
+        # Render only visible tiles
+        for y in range(start_tile_y, end_tile_y):
+            for x in range(start_tile_x, end_tile_x):
+                screen_x = x * self.tile_size - self.camera_x
+                screen_y = y * self.tile_size - self.camera_y
+                tile_index = self.map[y][x]
+                if 0 <= tile_index < len(self.tiles):
+                    self.screen.blit(self.tiles[tile_index], (screen_x, screen_y))
+
+        # Render visible objects
+        for obj_data in self.visible_objects_cache:
+            obj = obj_data['obj']
+            screen_x = obj_data['screen_x']
+            screen_y = obj_data['screen_y']
+            
+            # Get object dimensions
+            obj_width = obj['image'].get_width()
+            obj_height = obj['image'].get_height()
+            
+            # Add object's rectangle to dirty rects
+            obj_rect = pygame.Rect(screen_x, screen_y, obj_width, obj_height)
+            self.dirty_rects.append(obj_rect)
+            
+            # Render the object
+            self.screen.blit(obj['image'], (screen_x, screen_y))
+
+        # Render the minimap
+        self.update_minimap()
+        minimap_rect = pygame.Rect(self.minimap_x, self.minimap_y, 
+                                 self.minimap_size, self.minimap_size)
+        self.dirty_rects.append(minimap_rect)
+        self.screen.blit(self.minimap_surface, (self.minimap_x, self.minimap_y))
+
+        # Render the panels
+        self.vertical_panel.render()
+        self.panel.render()
+
+        # Update only the dirty areas of the screen
+        if self.dirty_rects:
+            pygame.display.update(self.dirty_rects)
+        else:
+            pygame.display.flip()
 
     def update_minimap(self):
         # Clear the minimap surface
