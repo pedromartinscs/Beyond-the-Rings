@@ -102,8 +102,9 @@ class Editor:
         # Object palette setup
         self.object_palette_width = 150
         self.object_palette_offset_x = 40
-        self.objects_per_page = 8  # 2x4 grid
+        self.objects_per_page = 8  # 2x4 grid for small objects
         self.current_object_page = 0
+        self.showing_large_objects = False  # Track if we're showing large objects
         
         # Initialize map as a 2D array filled with grass (tile 0)
         self.map = [[0 for _ in range(self.map_width)] for _ in range(self.map_height)]
@@ -181,6 +182,9 @@ class Editor:
     def render(self):
         self.screen.fill((30, 30, 30))                   # Dark gray background
         
+        # Initialize font
+        font = pygame.font.Font(None, 36)
+        
         # Define map area (grid on left side)
         map_margin_right = 10
         map_margin_bottom = 16  # Space for instructions and padding
@@ -245,47 +249,82 @@ class Editor:
             if i == self.selected_tile:
                 pygame.draw.rect(self.screen, (255, 255, 0), rect, 3)
         
-        # Draw navigation buttons (hidden since we only have one page)
-        pygame.draw.rect(self.screen, (100, 100, 100), self.prev_button_rect)
-        pygame.draw.rect(self.screen, (100, 100, 100), self.next_button_rect)
+        # Draw navigation buttons
+        # Show left arrow only if not on first page
+        if self.current_page > 0:
+            pygame.draw.rect(self.screen, (100, 100, 100), self.prev_button_rect)
+            prev_text = font.render("<", True, (255, 255, 255))
+            self.screen.blit(prev_text, (self.prev_button_rect.x + 8, self.prev_button_rect.y + 2))
         
-        # Draw navigation button text
-        font = pygame.font.Font(None, 36)
-        prev_text = font.render("<", True, (255, 255, 255))
-        next_text = font.render(">", True, (255, 255, 255))
-        self.screen.blit(prev_text, (self.prev_button_rect.x + 8, self.prev_button_rect.y + 2))
-        self.screen.blit(next_text, (self.next_button_rect.x + 8, self.next_button_rect.y + 2))
+        # Show right arrow if there are more tiles to show
+        total_pages = (self.selectable_tiles + self.tiles_per_page - 1) // self.tiles_per_page
+        if self.current_page < total_pages - 1:
+            pygame.draw.rect(self.screen, (100, 100, 100), self.next_button_rect)
+            next_text = font.render(">", True, (255, 255, 255))
+            self.screen.blit(next_text, (self.next_button_rect.x + 8, self.next_button_rect.y + 2))
         
         # Render object palette
-        object_palette_y = palette_y + (self.tile_size * 4) + 10  # Below the tile palette
-        objects = self.object_collection.get_objects_by_type(self.selected_object_type)
+        object_palette_y = palette_y + (self.tile_size * 4) + 10
+        
+        # Get objects based on current view
+        if self.showing_large_objects:
+            objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+            objects_per_page = 2  # Only 2 large objects per page
+        else:
+            objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+            objects_per_page = self.objects_per_page
         
         # Calculate start and end indices for current page
-        start_idx = self.current_object_page * self.objects_per_page
-        end_idx = min(start_idx + self.objects_per_page, len(objects))
+        start_idx = self.current_object_page * objects_per_page
+        end_idx = min(start_idx + objects_per_page, len(objects))
         
-        # Draw objects in 2x4 grid
+        # Draw objects in grid
         for i in range(start_idx, end_idx):
             obj = objects[i]
-            row = (i - start_idx) // 2
-            col = (i - start_idx) % 2
-            rect = pygame.Rect(
-                palette_x + (col * self.tile_size),
-                object_palette_y + (row * self.tile_size),
-                self.tile_size,
-                self.tile_size
-            )
+            if self.showing_large_objects:
+                # For large objects, use 2x2 grid
+                row = (i - start_idx) // 1  # Only one column for large objects
+                col = 0
+                rect = pygame.Rect(
+                    palette_x,
+                    object_palette_y + (row * self.tile_size * 2),
+                    self.tile_size * 2,
+                    self.tile_size * 2
+                )
+            else:
+                # For small objects, use 2x4 grid
+                row = (i - start_idx) // 2
+                col = (i - start_idx) % 2
+                rect = pygame.Rect(
+                    palette_x + (col * self.tile_size),
+                    object_palette_y + (row * self.tile_size),
+                    self.tile_size,
+                    self.tile_size
+                )
+            
+            # Draw the object
             self.screen.blit(obj['image'], rect.topleft)
+            
+            # Draw selection highlight
             if self.selected_object and obj['id'] == self.selected_object['id']:
                 pygame.draw.rect(self.screen, (255, 255, 0), rect, 3)
         
         # Draw object navigation buttons
-        pygame.draw.rect(self.screen, (100, 100, 100), self.object_prev_button_rect)
-        pygame.draw.rect(self.screen, (100, 100, 100), self.object_next_button_rect)
+        # Show left arrow only if not on first page or if showing large objects
+        if self.current_object_page > 0 or self.showing_large_objects:
+            pygame.draw.rect(self.screen, (100, 100, 100), self.object_prev_button_rect)
+            prev_text = font.render("<", True, (255, 255, 255))
+            self.screen.blit(prev_text, (self.object_prev_button_rect.x + 8, self.object_prev_button_rect.y + 2))
         
-        # Draw object navigation button text
-        self.screen.blit(prev_text, (self.object_prev_button_rect.x + 8, self.object_prev_button_rect.y + 2))
-        self.screen.blit(next_text, (self.object_next_button_rect.x + 8, self.object_next_button_rect.y + 2))
+        # Show right arrow if there are more objects to show
+        total_pages = (len(objects) + objects_per_page - 1) // objects_per_page
+        if self.current_object_page < total_pages - 1 or (
+            not self.showing_large_objects and 
+            self.object_collection.get_total_objects('large') > 0
+        ):
+            pygame.draw.rect(self.screen, (100, 100, 100), self.object_next_button_rect)
+            next_text = font.render(">", True, (255, 255, 255))
+            self.screen.blit(next_text, (self.object_next_button_rect.x + 8, self.object_next_button_rect.y + 2))
         
         # Draw palette buttons
         pygame.draw.rect(self.screen, (200, 0, 0), self.exit_button_rect)
@@ -334,7 +373,42 @@ class Editor:
         # Mouse hover cursor change
         if event.type == pygame.MOUSEMOTION:
             mouse_x, mouse_y = event.pos
-            over_button = any(rect.collidepoint(mouse_x, mouse_y) for rect in palette_buttons)
+            over_button = False
+            
+            # Get objects based on current view
+            if self.showing_large_objects:
+                objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+                objects_per_page = 2  # Only 2 large objects per page
+            else:
+                objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+                objects_per_page = self.objects_per_page
+            
+            # Check regular buttons
+            for rect in [self.exit_button_rect, self.save_button_rect, self.load_button_rect,
+                        self.rnd_grass_button_rect, self.rnd_water_button_rect, self.rnd_map_button_rect]:
+                if rect.collidepoint(mouse_x, mouse_y):
+                    over_button = True
+                    break
+            
+            # Check tile navigation buttons only if they're visible
+            if not over_button:
+                if self.current_page > 0 and self.prev_button_rect.collidepoint(mouse_x, mouse_y):
+                    over_button = True
+                elif self.current_page < ((self.selectable_tiles + self.tiles_per_page - 1) // self.tiles_per_page - 1) and self.next_button_rect.collidepoint(mouse_x, mouse_y):
+                    over_button = True
+            
+            # Check object navigation buttons only if they're visible
+            if not over_button:
+                if (self.current_object_page > 0 or self.showing_large_objects) and self.object_prev_button_rect.collidepoint(mouse_x, mouse_y):
+                    over_button = True
+                elif self.object_next_button_rect.collidepoint(mouse_x, mouse_y):
+                    total_pages = (len(objects) + objects_per_page - 1) // objects_per_page
+                    if self.current_object_page < total_pages - 1 or (
+                        not self.showing_large_objects and 
+                        self.object_collection.get_total_objects('large') > 0
+                    ):
+                        over_button = True
+            
             if over_button:
                 pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_HAND)
             else:
@@ -347,17 +421,81 @@ class Editor:
                 if mouse_x >= self.screen_width - self.palette_width:  # Palette area
                     # Check navigation buttons
                     if self.prev_button_rect.collidepoint(event.pos):
-                        self.current_page = (self.current_page - 1) % self.total_pages
+                        if self.current_page > 0:
+                            self.current_page -= 1
                     elif self.next_button_rect.collidepoint(event.pos):
-                        self.current_page = (self.current_page + 1) % self.total_pages
-                    elif self.object_prev_button_rect.collidepoint(event.pos):
-                        objects = self.object_collection.get_objects_by_type(self.selected_object_type)
-                        self.current_object_page = (self.current_object_page - 1) % ((len(objects) + self.objects_per_page - 1) // self.objects_per_page)
+                        total_pages = (self.selectable_tiles + self.tiles_per_page - 1) // self.tiles_per_page
+                        if self.current_page < total_pages - 1:
+                            self.current_page += 1
+                    
+                    # Handle object navigation buttons
+                    if self.object_prev_button_rect.collidepoint(event.pos):
+                        if self.showing_large_objects:
+                            # If we're showing large objects and on first page, switch to small objects
+                            if self.current_object_page == 0:
+                                self.showing_large_objects = False
+                                small_objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+                                self.current_object_page = (len(small_objects) + self.objects_per_page - 1) // self.objects_per_page - 1
+                            else:
+                                self.current_object_page -= 1
+                        else:
+                            if self.current_object_page > 0:
+                                self.current_object_page -= 1
                     elif self.object_next_button_rect.collidepoint(event.pos):
-                        objects = self.object_collection.get_objects_by_type(self.selected_object_type)
-                        self.current_object_page = (self.current_object_page + 1) % ((len(objects) + self.objects_per_page - 1) // self.objects_per_page)
+                        if self.showing_large_objects:
+                            large_objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+                            total_large_pages = (len(large_objects) + 1) // 2  # 2 objects per page
+                            if self.current_object_page < total_large_pages - 1:
+                                self.current_object_page += 1
+                        else:
+                            small_objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+                            total_small_pages = (len(small_objects) + self.objects_per_page - 1) // self.objects_per_page
+                            if self.current_object_page < total_small_pages - 1:
+                                self.current_object_page += 1
+                            elif self.object_collection.get_total_objects('large') > 0:
+                                # Switch to large objects if we have any
+                                self.showing_large_objects = True
+                                self.current_object_page = 0
+                    
+                    # Handle object selection
+                    object_palette_y = 10 + (self.tile_size * 4) + 10
+                    if self.showing_large_objects:
+                        objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+                        objects_per_page = 2
+                    else:
+                        objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+                        objects_per_page = self.objects_per_page
+                    
+                    start_idx = self.current_object_page * objects_per_page
+                    end_idx = min(start_idx + objects_per_page, len(objects))
+                    
+                    for i in range(start_idx, end_idx):
+                        obj = objects[i]
+                        if self.showing_large_objects:
+                            row = (i - start_idx) // 1
+                            rect = pygame.Rect(
+                                self.screen_width - self.object_palette_width + self.object_palette_offset_x,
+                                object_palette_y + (row * self.tile_size * 2),
+                                self.tile_size * 2,
+                                self.tile_size * 2
+                            )
+                        else:
+                            row = (i - start_idx) // 2
+                            col = (i - start_idx) % 2
+                            rect = pygame.Rect(
+                                self.screen_width - self.object_palette_width + self.object_palette_offset_x + (col * self.tile_size),
+                                object_palette_y + (row * self.tile_size),
+                                self.tile_size,
+                                self.tile_size
+                            )
+                        
+                        if rect.collidepoint(event.pos):
+                            self.selected_object = obj
+                            self.selected_tile = None  # Deselect tile when selecting an object
+                            break
+                    
                     # Check other buttons
-                    elif self.exit_button_rect.collidepoint(event.pos):
+                    if self.exit_button_rect.collidepoint(event.pos):
                         self.exit_editor()
                     elif self.save_button_rect.collidepoint(event.pos):
                         self.save_map()
@@ -386,27 +524,6 @@ class Editor:
                             if rect.collidepoint(event.pos):
                                 self.selected_tile = i
                                 self.selected_object = None  # Deselect object when selecting a tile
-                                break
-                        
-                        # Check if an object was clicked
-                        object_palette_y = palette_y + (self.tile_size * 4) + 10
-                        objects = self.object_collection.get_objects_by_type(self.selected_object_type)
-                        start_idx = self.current_object_page * self.objects_per_page
-                        end_idx = min(start_idx + self.objects_per_page, len(objects))
-                        
-                        for i in range(start_idx, end_idx):
-                            obj = objects[i]
-                            row = (i - start_idx) // 2
-                            col = (i - start_idx) % 2
-                            rect = pygame.Rect(
-                                palette_x + (col * self.tile_size),
-                                object_palette_y + (row * self.tile_size),
-                                self.tile_size,
-                                self.tile_size
-                            )
-                            if rect.collidepoint(event.pos):
-                                self.selected_object = obj
-                                self.selected_tile = None  # Deselect tile when selecting an object
                                 break
                 else:  # Map area
                     map_x = (mouse_x + self.camera_x) // self.tile_size
