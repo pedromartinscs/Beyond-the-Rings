@@ -88,14 +88,26 @@ class Game:
     def load_map(self, file_path):
         try:
             with open(file_path, 'r') as file:
-                # Read the first line to get map dimensions
-                first_line = file.readline().strip()
-                width, height = map(int, first_line.split())
+                # Read all lines, ignoring comments and empty lines
+                lines = [line.strip() for line in file.readlines() if line.strip() and not line.strip().startswith('#')]
                 
+                if not lines or len(lines) < 2:
+                    print(f"Error: Map file is empty or missing data: {file_path}")
+                    return [[(x + y) % 2 for x in range(120)] for y in range(120)]  # Return default map
+                
+                # Parse dimensions from first line
+                width, height = map(int, lines[0].split())
+                
+                # Read map tiles
                 map_data = []
-                for line in file:
+                for y in range(height):
+                    if y + 1 >= len(lines):
+                        print(f"Error: Missing row {y} in map data.")
+                        return [[(x + y) % 2 for x in range(120)] for y in range(120)]  # Return default map
+                    
                     # Extract tile numbers from [00000] format
                     tiles = []
+                    line = lines[y + 1]
                     i = 0
                     while i < len(line):
                         if line[i] == '[':
@@ -110,20 +122,64 @@ class Game:
                                 i += 1
                         else:
                             i += 1
-                    if tiles:  # Only add non-empty rows
-                        map_data.append(tiles)
+                    
+                    if len(tiles) != width:
+                        print(f"Error: Row {y} has {len(tiles)} tiles, expected {width}.")
+                        return [[(x + y) % 2 for x in range(120)] for y in range(120)]  # Return default map
+                    
+                    map_data.append(tiles)
                 
-                # Verify map dimensions
-                if len(map_data) != height or (map_data and len(map_data[0]) != width):
-                    print(f"Warning: Map dimensions don't match header. Expected {width}x{height}, got {len(map_data[0]) if map_data else 0}x{len(map_data)}")
+                # Read objects (if any)
+                self.objects = []
+                for line in lines[height + 1:]:
+                    # Extract object data from [x][y][name][life][z-index] format
+                    obj_data = []
+                    i = 0
+                    while i < len(line):
+                        if line[i] == '[':
+                            end = line.find(']', i)
+                            if end != -1:
+                                data = line[i+1:end]
+                                obj_data.append(data)
+                                i = end + 1
+                            else:
+                                i += 1
+                        else:
+                            i += 1
+                    
+                    if len(obj_data) != 5:
+                        print(f"Warning: Invalid object format: {line}")
+                        continue
+                    
+                    try:
+                        x = int(obj_data[0])
+                        y = int(obj_data[1])
+                        name = obj_data[2]
+                        life = int(obj_data[3])
+                        z_index = int(obj_data[4])
+                        
+                        if 0 <= x < width and 0 <= y < height:
+                            self.objects.append({
+                                'x': x,
+                                'y': y,
+                                'name': name,
+                                'life': life,
+                                'z_index': z_index
+                            })
+                        else:
+                            print(f"Warning: Object at invalid coordinates ({x}, {y})")
+                    except ValueError as e:
+                        print(f"Error parsing object data: {e}")
                 
+                print(f"Successfully loaded map with {len(self.objects)} objects")
                 return map_data
+                
         except FileNotFoundError:
             print(f"Map file not found: {file_path}")
-            return [[(x + y) % 2 for x in range(120)] for y in range(120)]  # Return default map if file not found
+            return [[(x + y) % 2 for x in range(120)] for y in range(120)]  # Return default map
         except Exception as e:
             print(f"Error loading map: {e}")
-            return [[(x + y) % 2 for x in range(120)] for y in range(120)]  # Return default map if error occurs
+            return [[(x + y) % 2 for x in range(120)] for y in range(120)]  # Return default map
 
     def is_minimap_clicked(self, pos):
         minimap_rect = pygame.Rect(self.minimap_x, self.minimap_y, 
@@ -186,6 +242,10 @@ class Game:
                 if self.is_minimap_clicked(mouse_pos):
                     self.update_camera_from_minimap(mouse_pos)
                 self.last_mouse_pos = mouse_pos
+
+        # Pass events to the vertical panel if it's visible
+        if self.vertical_panel_visible:
+            self.vertical_panel.handle_events(event)
 
     def update_camera_from_minimap(self, mouse_pos):
         # Calculate the click position relative to the minimap
@@ -254,8 +314,10 @@ class Game:
         self.camera_x = max(0, min(self.camera_x, self.map_width * self.tile_size - self.camera_width))
         self.camera_y = max(0, min(self.camera_y, self.map_height * self.tile_size - self.camera_height))
 
-        # Update panel animations
-        self.vertical_panel.update()
+        # Update panel animations and check for screen transitions
+        next_screen = self.vertical_panel.update()
+        if next_screen:
+            return next_screen
 
     def update_minimap(self):
         # Clear the minimap surface

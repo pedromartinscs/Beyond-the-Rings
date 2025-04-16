@@ -3,6 +3,7 @@ import sys
 import tkinter as tk
 from tkinter import filedialog
 import random
+from object_collection import ObjectCollection
 
 # Main class for the map editor
 class Editor:
@@ -16,20 +17,27 @@ class Editor:
         self.tile_size = 32                              # Size of each tile (32x32 pixels)
         self.map_width = 100                             # Map width in tiles
         self.map_height = 100                            # Map height in tiles
+        self.selected_tile = 0                           # Index of currently selected tile (default: 0)
+        
+        # Object setup
+        self.objects = []  # List to store placed objects
+        self.object_collection = ObjectCollection()
+        self.selected_object = None
+        self.selected_object_type = "Trees"  # Default object type
         
         # Load and scale tile images (4 selectable + transition tiles)
         self.tile_images = []                            # List to store tile images
-        # Selectable tiles (0-3)
+        # Selectable tiles (0-5)
         grass1 = pygame.image.load("Maps/Common/Tiles/00000.png")  # Grass tile 1
         grass1 = pygame.transform.scale(grass1, (self.tile_size, self.tile_size))
         self.tile_images.append(grass1)
         grass2 = pygame.image.load("Maps/Common/Tiles/00001.png")  # Grass tile 2
         grass2 = pygame.transform.scale(grass2, (self.tile_size, self.tile_size))
         self.tile_images.append(grass2)
-        grass3 = pygame.image.load("Maps/Common/Tiles/00002.png")  # Grass tile 1
+        grass3 = pygame.image.load("Maps/Common/Tiles/00002.png")  # Grass tile 3
         grass3 = pygame.transform.scale(grass3, (self.tile_size, self.tile_size))
         self.tile_images.append(grass3)
-        grass4 = pygame.image.load("Maps/Common/Tiles/00003.png")  # Grass tile 2
+        grass4 = pygame.image.load("Maps/Common/Tiles/00003.png")  # Grass tile 4
         grass4 = pygame.transform.scale(grass4, (self.tile_size, self.tile_size))
         self.tile_images.append(grass4)
         water1 = pygame.image.load("Maps/Common/Tiles/00004.png")  # Water tile 1
@@ -38,6 +46,7 @@ class Editor:
         water2 = pygame.image.load("Maps/Common/Tiles/00005.png")  # Water tile 2
         water2 = pygame.transform.scale(water2, (self.tile_size, self.tile_size))
         self.tile_images.append(water2)
+        
         # Transition tiles (6-19, not selectable)
         shore_top = pygame.image.load("Maps/Common/Tiles/00006.png")
         shore_top = pygame.transform.scale(shore_top, (self.tile_size, self.tile_size))
@@ -82,15 +91,22 @@ class Editor:
         shore_double_tip_right_top = pygame.transform.scale(shore_double_tip_right_top, (self.tile_size, self.tile_size))
         self.tile_images.append(shore_double_tip_right_top)
         
-        self.selectable_tiles = 6                        # Only first 4 tiles are selectable
-        self.selected_tile = 0                           # Index of currently selected tile (default: 0)
+        # Tile palette setup
+        self.palette_width = 150
+        self.palette_offset_x = 40
+        self.tiles_per_page = 8  # 2x4 grid
+        self.current_page = 0
+        self.total_pages = 1  # Only one page since we're only showing 6 tiles
+        self.selectable_tiles = 6  # Number of tiles that can be selected (4 grass + 2 water)
+        
+        # Object palette setup
+        self.object_palette_width = 150
+        self.object_palette_offset_x = 40
+        self.objects_per_page = 8  # 2x4 grid
+        self.current_object_page = 0
         
         # Initialize map as a 2D array filled with grass (tile 0)
         self.map = [[0 for _ in range(self.map_width)] for _ in range(self.map_height)]
-        
-        # Palette setup (right side UI)
-        self.palette_width = 150                         # Width reserved for palette
-        self.palette_offset_x = 40                       # Horizontal offset for palette
         
         # Camera for map scrolling
         self.camera_x = 0                                # Camera X position (pixels)
@@ -118,7 +134,7 @@ class Editor:
             100, 30
         )
         
-        # Random buttons
+        # Random map generation buttons
         self.rnd_grass_button_rect = pygame.Rect(
             self.screen_width - self.palette_width + self.palette_offset_x,
             self.screen_height - 240,
@@ -129,12 +145,34 @@ class Editor:
             self.screen_height - 200,
             100, 30
         )
-        
-        # Random map button
         self.rnd_map_button_rect = pygame.Rect(
             self.screen_width - self.palette_width + self.palette_offset_x,
             self.screen_height - 280,
             100, 30
+        )
+        
+        # Navigation buttons
+        self.prev_button_rect = pygame.Rect(
+            self.screen_width - self.palette_width + self.palette_offset_x - 30,
+            10 + (self.tile_size * 2),  # Center vertically with the grid
+            30, 30
+        )
+        self.next_button_rect = pygame.Rect(
+            self.screen_width - self.palette_width + self.palette_offset_x + (self.tile_size * 2) + 10,
+            10 + (self.tile_size * 2),  # Center vertically with the grid
+            30, 30
+        )
+        
+        # Object navigation buttons
+        self.object_prev_button_rect = pygame.Rect(
+            self.screen_width - self.object_palette_width + self.object_palette_offset_x - 30,
+            10 + (self.tile_size * 4) + 20,  # Below the tile palette
+            30, 30
+        )
+        self.object_next_button_rect = pygame.Rect(
+            self.screen_width - self.object_palette_width + self.object_palette_offset_x + (self.tile_size * 2) + 10,
+            10 + (self.tile_size * 4) + 20,  # Below the tile palette
+            30, 30
         )
         
         pygame.mouse.set_cursor(pygame.SYSTEM_CURSOR_ARROW)  # Set default cursor to arrow
@@ -147,7 +185,7 @@ class Editor:
         map_margin_right = 10
         map_margin_bottom = 16  # Space for instructions and padding
         map_area_width = self.screen_width - self.palette_width - map_margin_right
-        map_area_height = self.screen_height - map_margin_bottom  # Map area should be smaller than screen height
+        map_area_height = self.screen_height - map_margin_bottom
         map_area_rect = pygame.Rect(0, 0, map_area_width, map_area_height)
         
         # Create a subsurface for the map to enforce clipping
@@ -179,45 +217,104 @@ class Editor:
         for y in range(start_y, map_area_height, self.tile_size):
             pygame.draw.line(map_surface, (50, 50, 50), (0, y), (map_area_width, y))
         
-        # Render palette (only selectable tiles)
-        palette_x = self.screen_width - self.palette_width + self.palette_offset_x
-        palette_y = 10  # Reset to original position
+        # Render objects (sorted by z-index)
+        for obj in sorted(self.objects, key=lambda x: x['z_index']):
+            obj_x = obj['x'] * self.tile_size - self.camera_x
+            obj_y = obj['y'] * self.tile_size - self.camera_y
+            
+            if -self.tile_size <= obj_x <= map_area_width and -self.tile_size <= obj_y <= map_area_height:
+                object_data = self.object_collection.get_object(obj['type'], obj['id'])
+                if object_data:
+                    map_surface.blit(object_data['image'], (obj_x, obj_y))
         
+        # Render tile palette (2x4 grid) - only show first 6 tiles
+        palette_x = self.screen_width - self.palette_width + self.palette_offset_x
+        palette_y = 10
+        
+        # Draw tiles in 2x4 grid (only first 6 tiles)
         for i in range(self.selectable_tiles):
-            rect = pygame.Rect(palette_x, palette_y + i * (self.tile_size + 10), self.tile_size, self.tile_size)
+            row = i // 2
+            col = i % 2
+            rect = pygame.Rect(
+                palette_x + (col * self.tile_size),
+                palette_y + (row * self.tile_size),
+                self.tile_size,
+                self.tile_size
+            )
             self.screen.blit(self.tile_images[i], rect.topleft)
             if i == self.selected_tile:
                 pygame.draw.rect(self.screen, (255, 255, 0), rect, 3)
         
-        # Draw random buttons
-        pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_grass_button_rect)
-        pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_water_button_rect)
-        pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_map_button_rect)
+        # Draw navigation buttons (hidden since we only have one page)
+        pygame.draw.rect(self.screen, (100, 100, 100), self.prev_button_rect)
+        pygame.draw.rect(self.screen, (100, 100, 100), self.next_button_rect)
         
-        # Render button text
-        font = pygame.font.Font(None, 24)
-        rnd_grass_text = font.render("Rnd grass", True, (255, 255, 255))
-        rnd_water_text = font.render("Rnd water", True, (255, 255, 255))
-        rnd_map_text = font.render("Rnd map", True, (255, 255, 255))
-        self.screen.blit(rnd_grass_text, (self.rnd_grass_button_rect.x + 5, self.rnd_grass_button_rect.y + 5))
-        self.screen.blit(rnd_water_text, (self.rnd_water_button_rect.x + 5, self.rnd_water_button_rect.y + 5))
-        self.screen.blit(rnd_map_text, (self.rnd_map_button_rect.x + 5, self.rnd_map_button_rect.y + 5))
+        # Draw navigation button text
+        font = pygame.font.Font(None, 36)
+        prev_text = font.render("<", True, (255, 255, 255))
+        next_text = font.render(">", True, (255, 255, 255))
+        self.screen.blit(prev_text, (self.prev_button_rect.x + 8, self.prev_button_rect.y + 2))
+        self.screen.blit(next_text, (self.next_button_rect.x + 8, self.next_button_rect.y + 2))
+        
+        # Render object palette
+        object_palette_y = palette_y + (self.tile_size * 4) + 10  # Below the tile palette
+        objects = self.object_collection.get_objects_by_type(self.selected_object_type)
+        
+        # Calculate start and end indices for current page
+        start_idx = self.current_object_page * self.objects_per_page
+        end_idx = min(start_idx + self.objects_per_page, len(objects))
+        
+        # Draw objects in 2x4 grid
+        for i in range(start_idx, end_idx):
+            obj = objects[i]
+            row = (i - start_idx) // 2
+            col = (i - start_idx) % 2
+            rect = pygame.Rect(
+                palette_x + (col * self.tile_size),
+                object_palette_y + (row * self.tile_size),
+                self.tile_size,
+                self.tile_size
+            )
+            self.screen.blit(obj['image'], rect.topleft)
+            if self.selected_object and obj['id'] == self.selected_object['id']:
+                pygame.draw.rect(self.screen, (255, 255, 0), rect, 3)
+        
+        # Draw object navigation buttons
+        pygame.draw.rect(self.screen, (100, 100, 100), self.object_prev_button_rect)
+        pygame.draw.rect(self.screen, (100, 100, 100), self.object_next_button_rect)
+        
+        # Draw object navigation button text
+        self.screen.blit(prev_text, (self.object_prev_button_rect.x + 8, self.object_prev_button_rect.y + 2))
+        self.screen.blit(next_text, (self.object_next_button_rect.x + 8, self.object_next_button_rect.y + 2))
         
         # Draw palette buttons
         pygame.draw.rect(self.screen, (200, 0, 0), self.exit_button_rect)
         pygame.draw.rect(self.screen, (0, 200, 0), self.save_button_rect)
         pygame.draw.rect(self.screen, (0, 0, 200), self.load_button_rect)
         
+        # Draw random map generation buttons
+        pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_grass_button_rect)
+        pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_water_button_rect)
+        pygame.draw.rect(self.screen, (0, 0, 0), self.rnd_map_button_rect)
+        
         # Render button text
+        font = pygame.font.Font(None, 24)
         exit_text = font.render("Exit", True, (255, 255, 255))
         save_text = font.render("Save Map", True, (255, 255, 255))
         load_text = font.render("Load Map", True, (255, 255, 255))
+        rnd_grass_text = font.render("Rnd grass", True, (255, 255, 255))
+        rnd_water_text = font.render("Rnd water", True, (255, 255, 255))
+        rnd_map_text = font.render("Rnd map", True, (255, 255, 255))
+        
         self.screen.blit(exit_text, (self.exit_button_rect.x + 5, self.exit_button_rect.y + 5))
         self.screen.blit(save_text, (self.save_button_rect.x + 5, self.save_button_rect.y + 5))
         self.screen.blit(load_text, (self.load_button_rect.x + 5, self.load_button_rect.y + 5))
+        self.screen.blit(rnd_grass_text, (self.rnd_grass_button_rect.x + 5, self.rnd_grass_button_rect.y + 5))
+        self.screen.blit(rnd_water_text, (self.rnd_water_button_rect.x + 5, self.rnd_water_button_rect.y + 5))
+        self.screen.blit(rnd_map_text, (self.rnd_map_button_rect.x + 5, self.rnd_map_button_rect.y + 5))
         
         # Display instructions at the bottom of the screen
-        instructions = "Left click: place tile; Right click: drag map; Click palette to select tile."
+        instructions = "Left click: place tile/object; Right click: drag map; Middle click: remove object; Click palette to select tile/object."
         inst_text = font.render(instructions, True, (255, 255, 255))
         instruction_padding = 11  # Space from bottom of screen
         self.screen.blit(inst_text, (10, self.screen_height - instruction_padding))
@@ -230,15 +327,9 @@ class Editor:
         
         # Define clickable palette areas
         palette_buttons = [self.exit_button_rect, self.save_button_rect, self.load_button_rect, 
-                         self.rnd_grass_button_rect, self.rnd_water_button_rect, self.rnd_map_button_rect]
-        for i in range(self.selectable_tiles):
-            rect = pygame.Rect(
-                self.screen_width - self.palette_width + self.palette_offset_x,
-                10 + i * (self.tile_size + 10),
-                self.tile_size,
-                self.tile_size
-            )
-            palette_buttons.append(rect)
+                         self.prev_button_rect, self.next_button_rect,
+                         self.rnd_grass_button_rect, self.rnd_water_button_rect, self.rnd_map_button_rect,
+                         self.object_prev_button_rect, self.object_next_button_rect]
         
         # Mouse hover cursor change
         if event.type == pygame.MOUSEMOTION:
@@ -254,53 +345,108 @@ class Editor:
             if event.button == 1:  # Left click
                 mouse_x, mouse_y = event.pos
                 if mouse_x >= self.screen_width - self.palette_width:  # Palette area
-                    palette_x = self.screen_width - self.palette_width + self.palette_offset_x
-                    palette_y = 10
-                    for i in range(self.selectable_tiles):
-                        rect = pygame.Rect(palette_x, palette_y + i * (self.tile_size + 10), self.tile_size, self.tile_size)
-                        if rect.collidepoint(event.pos):
-                            self.selected_tile = i
-                            break
-                    if self.exit_button_rect.collidepoint(event.pos):
+                    # Check navigation buttons
+                    if self.prev_button_rect.collidepoint(event.pos):
+                        self.current_page = (self.current_page - 1) % self.total_pages
+                    elif self.next_button_rect.collidepoint(event.pos):
+                        self.current_page = (self.current_page + 1) % self.total_pages
+                    elif self.object_prev_button_rect.collidepoint(event.pos):
+                        objects = self.object_collection.get_objects_by_type(self.selected_object_type)
+                        self.current_object_page = (self.current_object_page - 1) % ((len(objects) + self.objects_per_page - 1) // self.objects_per_page)
+                    elif self.object_next_button_rect.collidepoint(event.pos):
+                        objects = self.object_collection.get_objects_by_type(self.selected_object_type)
+                        self.current_object_page = (self.current_object_page + 1) % ((len(objects) + self.objects_per_page - 1) // self.objects_per_page)
+                    # Check other buttons
+                    elif self.exit_button_rect.collidepoint(event.pos):
                         self.exit_editor()
-                    if self.save_button_rect.collidepoint(event.pos):
+                    elif self.save_button_rect.collidepoint(event.pos):
                         self.save_map()
-                    if self.load_button_rect.collidepoint(event.pos):
+                    elif self.load_button_rect.collidepoint(event.pos):
                         self.load_map()
-                    if self.rnd_grass_button_rect.collidepoint(event.pos):
+                    elif self.rnd_grass_button_rect.collidepoint(event.pos):
                         self.randomize_grass_tiles()
-                    if self.rnd_water_button_rect.collidepoint(event.pos):
+                    elif self.rnd_water_button_rect.collidepoint(event.pos):
                         self.randomize_water_tiles()
-                    if self.rnd_map_button_rect.collidepoint(event.pos):
+                    elif self.rnd_map_button_rect.collidepoint(event.pos):
                         self.randomize_map()
+                    else:
+                        # Check if a tile was clicked
+                        palette_x = self.screen_width - self.palette_width + self.palette_offset_x
+                        palette_y = 10
+                        
+                        for i in range(self.selectable_tiles):
+                            row = i // 2
+                            col = i % 2
+                            rect = pygame.Rect(
+                                palette_x + (col * self.tile_size),
+                                palette_y + (row * self.tile_size),
+                                self.tile_size,
+                                self.tile_size
+                            )
+                            if rect.collidepoint(event.pos):
+                                self.selected_tile = i
+                                self.selected_object = None  # Deselect object when selecting a tile
+                                break
+                        
+                        # Check if an object was clicked
+                        object_palette_y = palette_y + (self.tile_size * 4) + 10
+                        objects = self.object_collection.get_objects_by_type(self.selected_object_type)
+                        start_idx = self.current_object_page * self.objects_per_page
+                        end_idx = min(start_idx + self.objects_per_page, len(objects))
+                        
+                        for i in range(start_idx, end_idx):
+                            obj = objects[i]
+                            row = (i - start_idx) // 2
+                            col = (i - start_idx) % 2
+                            rect = pygame.Rect(
+                                palette_x + (col * self.tile_size),
+                                object_palette_y + (row * self.tile_size),
+                                self.tile_size,
+                                self.tile_size
+                            )
+                            if rect.collidepoint(event.pos):
+                                self.selected_object = obj
+                                self.selected_tile = None  # Deselect tile when selecting an object
+                                break
                 else:  # Map area
                     map_x = (mouse_x + self.camera_x) // self.tile_size
                     map_y = (mouse_y + self.camera_y) // self.tile_size
                     if 0 <= map_x < self.map_width and 0 <= map_y < self.map_height:
-                        self.place_tile(map_x, map_y)
-                    self.left_button_down = True
+                        if self.selected_object:
+                            # Check if the position is valid before placing the object
+                            if self.is_valid_object_position(map_x, map_y):
+                                # Place object
+                                self.objects.append({
+                                    'x': map_x,
+                                    'y': map_y,
+                                    'type': self.selected_object_type,
+                                    'id': self.selected_object['id'],
+                                    'health': 500 if self.selected_object_type == "Trees" else 0,
+                                    'z_index': 1 if self.selected_object_type == "Trees" else 0
+                                })
+                            else:
+                                print("Cannot place objects on water or shore tiles!")
+                        else:
+                            self.place_tile(map_x, map_y)
             elif event.button == 3:  # Right click (drag start)
                 self.dragging = True
                 self.last_mouse_pos = event.pos
+            elif event.button == 2:  # Middle click to remove object
+                mouse_x, mouse_y = event.pos
+                map_x = (mouse_x + self.camera_x) // self.tile_size
+                map_y = (mouse_y + self.camera_y) // self.tile_size
+                # Remove object at this position
+                self.objects = [obj for obj in self.objects if not (obj['x'] == map_x and obj['y'] == map_y)]
         
         # Mouse button release
         if event.type == pygame.MOUSEBUTTONUP:
-            if event.button == 1:
-                self.left_button_down = False
             if event.button == 3:
                 self.dragging = False
                 self.last_mouse_pos = None
         
         # Mouse movement (dragging or painting)
         if event.type == pygame.MOUSEMOTION:
-            if hasattr(self, 'left_button_down') and self.left_button_down:
-                mouse_x, mouse_y = event.pos
-                if mouse_x < self.screen_width - self.palette_width:
-                    map_x = (mouse_x + self.camera_x) // self.tile_size
-                    map_y = (mouse_y + self.camera_y) // self.tile_size
-                    if 0 <= map_x < self.map_width and 0 <= map_y < self.map_height:
-                        self.place_tile(map_x, map_y)
-            if self.dragging and self.last_mouse_pos is not None:
+            if hasattr(self, 'dragging') and self.dragging:
                 dx = event.pos[0] - self.last_mouse_pos[0]
                 dy = event.pos[1] - self.last_mouse_pos[1]
                 self.camera_x -= dx
@@ -325,6 +471,26 @@ class Editor:
                 self.camera_y = min(max_y, self.camera_y + self.camera_speed)
     
     # --- Tile Placement and Auto-Tiling ---
+    def check_and_remove_objects(self, map_x, map_y):
+        """Check and remove objects that are on water or shore tiles.
+        Only removes objects with z-index 0 or 1 (floor level or just above)."""
+        # Get all objects at this position
+        objects_to_remove = []
+        for obj in self.objects:
+            if obj['x'] == map_x and obj['y'] == map_y:
+                # Check if the object is at floor level (z-index 0 or 1)
+                if obj['z_index'] in [0, 1]:
+                    # Check if the tile is water or shore
+                    tile = self.map[map_y][map_x]
+                    if tile in [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
+                        objects_to_remove.append(obj)
+        
+        # Remove the objects
+        for obj in objects_to_remove:
+            self.objects.remove(obj)
+        
+        return len(objects_to_remove) > 0  # Return True if any objects were removed
+
     def place_tile(self, map_x, map_y):
         # Check if placing grass would isolate it
         if self.selected_tile in [0, 1, 2, 3]:
@@ -335,9 +501,19 @@ class Editor:
         old_tile = self.map[map_y][map_x]
         self.map[map_y][map_x] = self.selected_tile
         
+        # If we're placing water or shore tiles, check and remove any objects
+        if self.selected_tile in [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
+            self.check_and_remove_objects(map_x, map_y)
+        
         # Update the surrounding area if the tile type changed (water or grass placement)
         if old_tile != self.selected_tile:
             self.update_map_area(map_x, map_y)
+            
+            # After updating the area, check and remove objects from any new water/shore tiles
+            for y in range(max(0, map_y - 2), min(self.map_height, map_y + 3)):
+                for x in range(max(0, map_x - 2), min(self.map_width, map_x + 3)):
+                    if self.map[y][x] in [4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19]:
+                        self.check_and_remove_objects(x, y)
     
     def is_isolated_grass(self, map_x, map_y):
         # Check if placing grass here would surround it with water or shore
@@ -453,14 +629,14 @@ class Editor:
               self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] not in [0, 1, 2, 3, 4, 5] and  # Below is not grass or water
               self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] not in [0, 1, 2, 3, 4, 5] and  # Left is not grass or water
               self.is_within_bounds(map_x - 1, map_y + 1) and self.map[map_y + 1][map_x - 1] in [0, 1, 2, 3, 6, 9, 10, 11, 13] and # Bottom-left is grass or shore with grass
-              not (self.is_within_bounds(map_x + 1, map_y - 1) and self.map[map_y - 1][map_x + 1] in [0, 1, 2, 3])): # Top-right is not grass
+              not (self.is_within_bounds(map_x + 1, map_y - 1) and self.map[map_y - 1][map_x + 1] in [0, 1, 2, 3])):
             self.map[map_y][map_x] = 16  # shore-bottom-tip-left
         elif (self.is_within_bounds(map_x - 1, map_y) and self.map[map_y][map_x - 1] not in [0, 1, 2, 3] and  # Left is not grass
               self.is_within_bounds(map_x, map_y - 1) and self.map[map_y - 1][map_x] not in [0, 1, 2, 3] and  # Above is not grass
               self.is_within_bounds(map_x, map_y + 1) and self.map[map_y + 1][map_x] not in [0, 1, 2, 3, 4, 5] and  # Below is not grass or water
               self.is_within_bounds(map_x + 1, map_y) and self.map[map_y][map_x + 1] not in [0, 1, 2, 3, 4, 5] and  # Right is not grass or water
               self.is_within_bounds(map_x + 1, map_y + 1) and self.map[map_y + 1][map_x + 1] in [0, 1, 2, 3, 6, 8, 10, 11, 12] and # Bottom-right is grass or shore with grass
-              not (self.is_within_bounds(map_x - 1, map_y - 1) and self.map[map_y - 1][map_x - 1] in [0, 1, 2, 3])): # Top-left is not grass
+              not (self.is_within_bounds(map_x - 1, map_y - 1) and self.map[map_y - 1][map_x - 1] in [0, 1, 2, 3])):
             self.map[map_y][map_x] = 17  # shore-bottom-tip-right
         elif (self.is_within_bounds(map_x + 1, map_y - 1) and self.map[map_y - 1][map_x + 1] in [4, 5] and # Top right is water
               self.is_within_bounds(map_x - 1, map_y + 1) and self.map[map_y + 1][map_x - 1] in [4, 5] and # Bottom left is water
@@ -607,16 +783,26 @@ class Editor:
         file_path = filedialog.asksaveasfilename(
             defaultextension=".txt",
             filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-            title="Save Map As"
+            title="Save Map"
         )
         if file_path:
             try:
                 with open(file_path, 'w') as f:
+                    # Write header comments
+                    f.write("#Map tiles: Dimensions followed by tile separated by [ ].\n")
                     f.write(f"{self.map_width} {self.map_height}\n")
+                    
+                    # Write map tiles
                     for row in self.map:
-                        formatted_row = "".join(f"[{str(tile).zfill(5)}]" for tile in row)
-                        f.write(formatted_row + "\n")
-                print(f"Map saved to {file_path}")
+                        line = ''.join(f"[{tile:05d}]" for tile in row)
+                        f.write(line + '\n')
+                    
+                    # Write objects section
+                    f.write("#Objects: on format [x][y][type][id][health][z-index]\n")
+                    for obj in self.objects:
+                        f.write(f"[{obj['x']}][{obj['y']}][{obj['type']}][{obj['id']}][{obj['health']}][{obj['z_index']}]\n")
+                
+                print(f"Map saved successfully to {file_path}")
             except Exception as e:
                 print(f"Error saving map: {e}")
         root.destroy()
@@ -631,49 +817,96 @@ class Editor:
         if file_path:
             try:
                 with open(file_path, 'r') as f:
-                    lines = [line.rstrip() for line in f.readlines() if line.strip()]  # Remove empty lines and trailing whitespace
+                    lines = [line.strip() for line in f.readlines() if line.strip() and not line.strip().startswith('#')]
+                    
                     if not lines or len(lines) < 2:
                         print("Error: File is empty or missing data.")
                         return
-                    # Parse dimensions
+                    
+                    # Parse dimensions from first line
                     width, height = map(int, lines[0].split())
                     print(f"Loading map with dimensions: {width}x{height}")
+                    
                     if width != self.map_width or height != self.map_height:
                         print(f"Warning: File dimensions ({width}x{height}) do not match editor dimensions ({self.map_width}x{self.map_height}). Loading may fail.")
                         return
+                    
+                    # Read map tiles
                     self.map = []
-                    for i, line in enumerate(lines[1:], 1):
-                        if not line:
-                            print(f"Warning: Skipping empty line at row {i}")
+                    for y in range(height):
+                        if y + 1 >= len(lines):
+                            print(f"Error: Missing row {y} in map data.")
+                            return
+                        
+                        # Extract tile numbers from [00000] format
+                        tiles = []
+                        line = lines[y + 1]
+                        i = 0
+                        while i < len(line):
+                            if line[i] == '[':
+                                # Find the closing bracket
+                                end = line.find(']', i)
+                                if end != -1:
+                                    # Extract the number between brackets
+                                    tile_num = int(line[i+1:end])
+                                    tiles.append(tile_num)
+                                    i = end + 1
+                                else:
+                                    i += 1
+                            else:
+                                i += 1
+                        
+                        if len(tiles) != width:
+                            print(f"Error: Row {y} has {len(tiles)} tiles, expected {width}.")
+                            return
+                        
+                        self.map.append(tiles)
+                    
+                    # Read objects (if any)
+                    self.objects = []
+                    for line in lines[height + 1:]:
+                        # Extract object data from [x][y][type][id][health][z-index] format
+                        obj_data = []
+                        i = 0
+                        while i < len(line):
+                            if line[i] == '[':
+                                end = line.find(']', i)
+                                if end != -1:
+                                    data = line[i+1:end]
+                                    obj_data.append(data)
+                                    i = end + 1
+                                else:
+                                    i += 1
+                            else:
+                                i += 1
+                        
+                        if len(obj_data) != 6:
+                            print(f"Error: Invalid object format: {line}")
                             continue
-                        expected_length = width * 7
-                        if len(line) != expected_length:
-                            print(f"Error: Row {i} length {len(line)} does not match expected {expected_length} characters. Trimming or padding.")
-                            if len(line) > expected_length:
-                                line = line[:expected_length]  # Trim excess
+                        
+                        try:
+                            x = int(obj_data[0])
+                            y = int(obj_data[1])
+                            obj_type = obj_data[2]
+                            obj_id = int(obj_data[3])
+                            health = int(obj_data[4])
+                            z_index = int(obj_data[5])
+                            
+                            if 0 <= x < width and 0 <= y < height:
+                                self.objects.append({
+                                    'x': x,
+                                    'y': y,
+                                    'type': obj_type,
+                                    'id': obj_id,
+                                    'health': health,
+                                    'z_index': z_index
+                                })
                             else:
-                                padding_needed = (expected_length - len(line)) // 7
-                                line += "[00000]" * padding_needed  # Pad with grass
-                        row = []
-                        for j in range(0, len(line), 7):
-                            tile_str = line[j:j + 7]
-                            if (len(tile_str) != 7 or tile_str[0] != '[' or tile_str[6] != ']' or
-                                not tile_str[1:6].isdigit() or int(tile_str[1:6]) > 19 or int(tile_str[1:6]) < 0):
-                                print(f"Error: Invalid tile format '{tile_str}' at row {i}, col {j // 7}. Defaulting to [00000].")
-                                row.append(0)  # Default to grass on error
-                            else:
-                                tile = int(tile_str[1:6])
-                                row.append(tile)
-                        if len(row) != width:
-                            print(f"Warning: Row {i} has {len(row)} tiles, expected {width}. Padding with [00000].")
-                            row.extend([0] * (width - len(row)))
-                        self.map.append(row)
-                    # Ensure correct number of rows
-                    while len(self.map) < height:
-                        print(f"Warning: Fewer rows ({len(self.map)}) than expected ({height}). Padding with [00000] rows.")
-                        self.map.append([0] * width)
-                    self.map = self.map[:height]  # Truncate if too many rows
-                    print(f"Map loaded with {len(self.map)} rows.")
+                                print(f"Warning: Object at invalid coordinates ({x}, {y})")
+                        except ValueError as e:
+                            print(f"Error parsing object data: {e}")
+                
+                print(f"Successfully loaded map with {len(self.objects)} objects")
             except Exception as e:
                 print(f"Error loading map: {e}")
         root.destroy()
@@ -729,6 +962,24 @@ class Editor:
                         self.selected_tile = random.randint(4, 5)  # Random water tile
                         self.place_tile(x, y)  # This will handle all the shore tile logic
                         self.selected_tile = old_selected  # Restore original selection
+
+    def is_valid_object_position(self, map_x, map_y):
+        """Check if an object can be placed at the given position.
+        Returns True if the position is valid (grass tile and no existing object), False otherwise."""
+        if not (0 <= map_x < self.map_width and 0 <= map_y < self.map_height):
+            return False
+        
+        # Check if the tile is grass (0-3)
+        tile = self.map[map_y][map_x]
+        if tile not in [0, 1, 2, 3]:  # Not a grass tile
+            return False
+        
+        # Check if there's already an object at this position
+        for obj in self.objects:
+            if obj['x'] == map_x and obj['y'] == map_y:
+                return False
+        
+        return True  # Position is valid (grass tile and no existing object)
 
 # --- Main Execution ---
 if __name__ == "__main__":

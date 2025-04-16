@@ -1,4 +1,5 @@
 import pygame
+import os
 
 class Panel:
     def __init__(self, screen):
@@ -9,6 +10,14 @@ class Panel:
         self.visible = False  # Start with the panel hidden
         self.current_y = self.screen.get_height()  # Panel starts off-screen (at the bottom)
         self.handle_height = 20  # Height of the visible handle when hidden
+
+        # Load cap and middle images
+        self.left_cap = pygame.image.load(os.path.join('Images', 'left_horizontal_menu_cap.png'))
+        self.left_cap = pygame.transform.scale(self.left_cap, (41, self.height))
+        self.right_cap = pygame.image.load(os.path.join('Images', 'right_horizontal_menu_cap.png'))
+        self.right_cap = pygame.transform.scale(self.right_cap, (41, self.height))
+        self.middle = pygame.image.load(os.path.join('Images', 'middle_horizontal_menu.png'))
+        self.middle = pygame.transform.scale(self.middle, (1, self.height))  # 1px wide, 200px tall
 
     def show(self):
         # Show the panel (slide it in)
@@ -38,4 +47,12 @@ class Panel:
             self.animate_panel(self.screen.get_height() - self.height)
         else:
             self.animate_panel(self.screen.get_height() - self.handle_height)
-        pygame.draw.rect(self.screen, self.color, (0, self.current_y, self.width, self.height))
+        # Draw left cap
+        self.screen.blit(self.left_cap, (0, self.current_y))
+        # Draw right cap
+        self.screen.blit(self.right_cap, (self.width - 41, self.current_y))
+        # Draw stretched middle
+        middle_width = self.width - 82  # 41px left + 41px right
+        if middle_width > 0:
+            stretched_middle = pygame.transform.scale(self.middle, (middle_width, self.height))
+            self.screen.blit(stretched_middle, (41, self.current_y))

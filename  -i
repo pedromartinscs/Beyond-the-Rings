@@ -1,0 +1,15 @@
+da72e6834468058a26b7ddc7e134cfa5b8f755c6<|ENT|><|RY|>Bug fix for game.py<|COM|><|MIT|>
+5e7ba117c0bf050e5bacb4e6ccbc936adbcbdc7b<|ENT|><|RY|>New buttons to the editor, prior to creating the Random map button<|COM|><|MIT|>
+d3a0261fb1a89fe1ae260373bbd9a15cdcaceb88<|ENT|><|RY|>Fixing game to have 20 tiles instead of 18 to the map<|COM|><|MIT|>
+cedaea4da3b0727935006c8b4a96120a7a78fc14<|ENT|><|RY|>Adding 2 more tiles of grass to the map editor<|COM|><|MIT|>
+f93c9e6ab6fff88a8634e8fcf8cf3822e51ddf1f<|ENT|><|RY|>Small changes in the map editor<|COM|><|MIT|>
+da78e38db86026dc31b32a970eb85873ea809354<|ENT|><|RY|>Correção bugs inclusão de água<|COM|><|MIT|>
+da612d212627b7bfc081111c78aaf33b41698b42<|ENT|><|RY|>Inclusion of 2 new shore tiles<|COM|><|MIT|>
+167460b44dffc63671132f38d54f38cea2d6b2f3<|ENT|><|RY|>Map Editor nearly finished<|COM|><|MIT|>
+da786d24a1f131c84760596a1f3a24a8f8ed765c<|ENT|><|RY|>Glow FX on buttons<|COM|><|MIT|>
+5cb82e952ea037fcee9cbbc0c480100137510e35<|ENT|><|RY|>Inclusion of button images for main menu<|COM|><|MIT|>
+bb5ef8581e1a5179e80d324906d57e2193ec2ba4<|ENT|><|RY|>Inclusion of bottom panel at game screen<|COM|><|MIT|>
+150201423914dc5917d1dd4a1aeecf65da94e0a2<|ENT|><|RY|>Fix on camera map movements throught mouse<|COM|><|MIT|>
+ddb1d22d5f86e7e307c8667ba3ebad4b88afd6c6<|ENT|><|RY|>Adding gitignore file<|COM|><|MIT|>
+0073a35c5268267acb0d0a664ff5f6d43681a94f<|ENT|><|RY|>Basic code<|COM|><|MIT|>
+1ea413c0193d86bfe681085bace21bcb28036ea2<|ENT|><|RY|>Initial commit<|COM|><|MIT|>
