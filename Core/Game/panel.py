@@ -15,6 +15,14 @@ class Panel:
         self.cap_width = 60  # Width of the left and right caps
         self.arrow_width = 20  # Width of the arrow section
 
+        # Add hint text properties
+        self.hint_font = pygame.font.Font(None, 16)  # Font for hint text
+        self.hint_text = "press SPACE to toggle"
+        self.hint_color = (200, 200, 200)  # Light gray color for hint
+        self.hint_surface = self.hint_font.render(self.hint_text, True, self.hint_color)
+        self.hint_x = (self.width - self.hint_surface.get_width()) // 2
+        self.hint_y = 5  # Small padding from top
+
         # Define areas dimensions and margins
         self.margin = 20  # Margin between areas and edges
         self.left_area_size = 150  # Square area for unit/building display
@@ -348,6 +356,10 @@ class Panel:
             # Draw the base panel
             self.screen.blit(self.base_surface, (0, self.current_y))
             
+            # Draw the hint text when panel is visible or animating
+            if self.visible or self.current_y < self.screen.get_height() - self.handle_height:
+                self.screen.blit(self.hint_surface, (self.hint_x, self.current_y + self.hint_y))
+            
             # Draw the three areas
             panel_y = self.current_y
             self.screen.blit(self.left_area, (self.left_area_pos[0], panel_y + self.left_area_pos[1]))
@@ -413,13 +425,8 @@ class Panel:
                     self.current_tooltip = self.render_tooltip(box, mouse_pos)
             
             self.screen.blit(self.right_area, (self.right_area_pos[0], panel_y + self.right_area_pos[1]))
-            
-            # Draw tooltip if needed
-            if self.current_tooltip:
-                tooltip_surface, tooltip_pos = self.current_tooltip
-                self.screen.blit(tooltip_surface, tooltip_pos)
         
-        # Calculate handle position
+        # Always render the handle, regardless of panel state
         if self.visible or self.current_y < self.screen.get_height() - self.handle_height:
             # When panel is visible or animating, handle follows panel
             handle_y = self.current_y - self.handle_height
@@ -430,3 +437,8 @@ class Panel:
         # Render the handle
         handle_image = self.handle_close_surface if self.visible else self.handle_open_surface
         self.screen.blit(handle_image, (0, handle_y))
+        
+        # Draw tooltip if needed (after handle to ensure it's on top)
+        if self.current_tooltip:
+            tooltip_surface, tooltip_pos = self.current_tooltip
+            self.screen.blit(tooltip_surface, tooltip_pos)

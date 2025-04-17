@@ -43,7 +43,7 @@ class VerticalPanel:
         # Create small font for the hint text
         self.hint_font = pygame.font.Font(None, 16)  # Small font size
         self.hint_text = "press esc to toggle"
-        self.hint_surface = self.hint_font.render(self.hint_text, True, (150, 150, 150))  # Light gray color
+        self.hint_surface = self.hint_font.render(self.hint_text, True, (200, 200, 200))  # Light gray color
         self.hint_rect = self.hint_surface.get_rect(centerx=self.width // 2, y=17)  # Increased from 15 to 17
 
         # Load hover sound effect
