@@ -80,7 +80,7 @@ class Panel:
         # Grid dimensions
         max_rows = 4
         max_cols = 6
-        total_buttons = 3  # Only create 3 buttons
+        total_buttons = 12  # Only create 12 buttons
         
         # Calculate spacing between buttons
         spacing_x = 8  # Fixed spacing between buttons
@@ -270,12 +270,35 @@ class Panel:
         if not box['is_wrapped']:
             return None
 
-        # Calculate tooltip position (above the box)
+        # Calculate tooltip position relative to the box
         tooltip_x = box['rect'].x + self.middle_area_pos[0]
-        tooltip_y = box['rect'].y + self.middle_area_pos[1] - self.tooltip_margin
-
-        # Wrap the full description for the tooltip
-        tooltip_lines = self.wrap_text(box['description'], self.tooltip_font, 300)[0]  # 300px max width for tooltip
+        
+        # Position tooltip above the box, but not too far up
+        # Use the panel's current_y position to determine available space
+        panel_top = self.current_y
+        box_top = box['rect'].y + self.middle_area_pos[1]
+        available_space_above = box_top - panel_top
+        
+        # Wrap the full description for the tooltip (without ellipsis)
+        tooltip_lines = []
+        words = box['description'].split(' ')
+        current_line = []
+        max_width = 300  # Max width for tooltip
+        
+        for word in words:
+            # Create a test line with the new word
+            test_line = ' '.join(current_line + [word])
+            test_width = self.tooltip_font.size(test_line)[0]
+            
+            if test_width <= max_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    tooltip_lines.append(' '.join(current_line))
+                current_line = [word]
+        
+        if current_line:
+            tooltip_lines.append(' '.join(current_line))
         
         # Calculate tooltip dimensions
         max_width = max(self.tooltip_font.size(line)[0] for line in tooltip_lines)
@@ -298,13 +321,17 @@ class Panel:
             tooltip_surface.blit(text_surface, (self.tooltip_padding, y_offset))
             y_offset += self.tooltip_font.get_height()
         
-        # Adjust position to ensure tooltip stays on screen
+        # Adjust position to ensure tooltip stays on screen and is close to the box
         if tooltip_x + tooltip_width > self.screen.get_width():
             tooltip_x = self.screen.get_width() - tooltip_width
-        if tooltip_y - tooltip_height < 0:
-            tooltip_y = box['rect'].y + self.middle_area_pos[1] + box['rect'].height + self.tooltip_margin
         
-        return (tooltip_surface, (tooltip_x, tooltip_y - tooltip_height))
+        # Position tooltip above the box if there's enough space, otherwise below
+        if available_space_above >= tooltip_height + self.tooltip_margin:
+            tooltip_y = box_top - tooltip_height - self.tooltip_margin
+        else:
+            tooltip_y = box_top + box['rect'].height + self.tooltip_margin
+        
+        return (tooltip_surface, (tooltip_x, tooltip_y))
 
     def render(self):
         # Calculate target positions
