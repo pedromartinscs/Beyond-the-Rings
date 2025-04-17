@@ -70,7 +70,7 @@ class Panel:
         # Grid dimensions
         max_rows = 4
         max_cols = 6
-        total_buttons = 3  # Only create 4 buttons
+        total_buttons = 3  # Only create 3 buttons
         
         # Calculate spacing between buttons
         spacing_x = 8  # Fixed spacing between buttons
@@ -128,19 +128,22 @@ class Panel:
             box = {
                 'rect': pygame.Rect(x + button_width + self.box_margin, y, box_width, button_height),
                 'title': "Mock Title",
-                'description': "Mock Description that might be longer than one line and needs to wrap",
+                'description': "Mock Description that might be longer than one line and needs to wrap, very important message that I'm making specially long to test the wrapping functionality",
                 'button': button,
-                'lines': []  # Will store wrapped description lines
+                'lines': [],  # Will store wrapped description lines
+                'is_wrapped': False  # Flag to track if description was wrapped
             }
             
             self.middle_buttons.append(button)
             self.description_boxes.append(box)
 
     def wrap_text(self, text, font, max_width):
-        """Wrap text to fit within max_width"""
+        """Wrap text to fit within max_width and add ellipsis if needed"""
         words = text.split(' ')
         lines = []
         current_line = []
+        is_wrapped = False
+        max_lines = 2  # Maximum number of lines we want to show
         
         for word in words:
             # Create a test line with the new word
@@ -152,12 +155,28 @@ class Panel:
             else:
                 if current_line:
                     lines.append(' '.join(current_line))
+                    if len(lines) >= max_lines:
+                        is_wrapped = True
+                        break
                 current_line = [word]
         
-        if current_line:
+        # Add the last line if we haven't reached max_lines
+        if current_line and len(lines) < max_lines:
             lines.append(' '.join(current_line))
         
-        return lines
+        # If we have more than max_lines, truncate and add ellipsis
+        if len(lines) > max_lines:
+            lines = lines[:max_lines]
+            is_wrapped = True
+        
+        # Add ellipsis to the last line if text was wrapped
+        if is_wrapped and lines:
+            last_line = lines[-1]
+            while font.size(last_line + '...')[0] > max_width and last_line:
+                last_line = last_line[:-1]
+            lines[-1] = last_line + '...'
+        
+        return lines, is_wrapped
 
     def create_cached_surfaces(self):
         """Create and cache the panel and handle surfaces"""
@@ -276,7 +295,7 @@ class Panel:
                 
                 # Wrap description text if needed
                 if not box['lines']:
-                    box['lines'] = self.wrap_text(box['description'], self.description_font, box['rect'].width - 8)
+                    box['lines'], box['is_wrapped'] = self.wrap_text(box['description'], self.description_font, box['rect'].width - 8)
                 
                 # Calculate box height based on content
                 title_height = self.title_font.get_height()
