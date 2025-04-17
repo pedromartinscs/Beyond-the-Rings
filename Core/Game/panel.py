@@ -139,12 +139,12 @@ class Panel:
             x = column_positions[col]
             y = row * (button_height + spacing_y)
             
-            # Create button
+            # Create button with hover image
             button = Button(
                 x, y, 0, 0, button_width, button_height,
                 "", None,  # No text or action for now
                 "Images/tiny_button_basic.png",
-                "Images/tiny_button_basic.png"  # Using same image for both states for now
+                "Images/tiny_button_basic_hover.png"  # Hover image
             )
             
             # Create description box
@@ -388,8 +388,12 @@ class Panel:
                 button_rect.x += middle_x
                 button_rect.y += middle_y
                 
-                # Draw button
-                self.screen.blit(button.image, button_rect)
+                # Update button hover state
+                button.is_hovered = button_rect.collidepoint(mouse_pos)
+                
+                # Draw button with appropriate image based on hover state
+                button_image = button.glow_image if button.is_hovered else button.image
+                self.screen.blit(button_image, button_rect)
                 
                 # Update box position
                 box['rect'].x = button.rect.x + button.rect.width + self.box_margin
