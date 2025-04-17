@@ -1,5 +1,6 @@
 import pygame
 import os
+from Core.Menu.button import Button
 
 class Panel:
     def __init__(self, screen):
@@ -13,6 +14,30 @@ class Panel:
         self.speed = 10  # Animation speed
         self.cap_width = 60  # Width of the left and right caps
         self.arrow_width = 20  # Width of the arrow section
+
+        # Define areas dimensions and margins
+        self.margin = 20  # Margin between areas and edges
+        self.left_area_size = 150  # Square area for unit/building display
+        self.right_area_width = 100  # Width of strategy buttons area
+        self.area_height = 150  # Height of all areas
+
+        # Calculate middle area width
+        self.middle_area_width = self.width - (self.left_area_size + self.right_area_width + (self.margin * 4))
+
+        # Create surfaces for each area
+        self.left_area = pygame.image.load(os.path.join('Images', 'game_menu_vertical_left_area.png'))
+        self.left_area = pygame.transform.scale(self.left_area, (self.left_area_size, self.area_height))
+        self.middle_area = pygame.Surface((self.middle_area_width, self.area_height), pygame.SRCALPHA)  # Make transparent
+        self.right_area = pygame.Surface((self.right_area_width, self.area_height))
+        self.right_area.fill((0, 0, 0))  # Black for now
+
+        # Calculate area positions
+        self.left_area_pos = (self.margin, self.margin + 5)
+        self.middle_area_pos = (self.left_area_pos[0] + self.left_area_size + self.margin, self.margin + 5)
+        self.right_area_pos = (self.width - self.right_area_width - self.margin, self.margin + 5)
+
+        # Create buttons for middle area
+        self.create_middle_area_buttons()
 
         # Load cap and middle images for panel
         self.left_cap = pygame.image.load(os.path.join('Images', 'left_horizontal_menu_cap.png'))
@@ -36,6 +61,38 @@ class Panel:
 
         # Create cached surfaces
         self.create_cached_surfaces()
+
+    def create_middle_area_buttons(self):
+        # Button dimensions
+        button_width = 32
+        button_height = 32
+        
+        # Grid dimensions
+        num_rows = 4
+        num_cols = 5
+        
+        # Calculate total space needed for buttons
+        total_button_width = num_cols * button_width
+        total_button_height = num_rows * button_height
+        
+        # Calculate spacing between buttons
+        spacing_x = (self.middle_area_width - total_button_width) // (num_cols - 1)
+        spacing_y = (self.area_height - total_button_height) // (num_rows - 1)
+        
+        # Create buttons
+        self.middle_buttons = []
+        for row in range(num_rows):
+            for col in range(num_cols):
+                x = col * (button_width + spacing_x)
+                y = row * (button_height + spacing_y)
+                
+                button = Button(
+                    x, y, 0, 0, button_width, button_height,
+                    "", None,  # No text or action for now
+                    "Images/tiny_button_basic.png",
+                    "Images/tiny_button_basic.png"  # Using same image for both states for now
+                )
+                self.middle_buttons.append(button)
 
     def create_cached_surfaces(self):
         """Create and cache the panel and handle surfaces"""
@@ -126,7 +183,24 @@ class Panel:
         
         # Render the panel if visible or animating
         if self.visible or self.current_y < self.screen.get_height() - self.handle_height:
+            # Draw the base panel
             self.screen.blit(self.base_surface, (0, self.current_y))
+            
+            # Draw the three areas
+            panel_y = self.current_y
+            self.screen.blit(self.left_area, (self.left_area_pos[0], panel_y + self.left_area_pos[1]))
+            
+            # Draw middle area and its buttons
+            middle_x = self.middle_area_pos[0]
+            middle_y = panel_y + self.middle_area_pos[1]
+            self.screen.blit(self.middle_area, (middle_x, middle_y))
+            for button in self.middle_buttons:
+                button_rect = button.rect.copy()
+                button_rect.x += middle_x
+                button_rect.y += middle_y
+                self.screen.blit(button.image, button_rect)
+            
+            self.screen.blit(self.right_area, (self.right_area_pos[0], panel_y + self.right_area_pos[1]))
         
         # Calculate handle position
         if self.visible or self.current_y < self.screen.get_height() - self.handle_height:

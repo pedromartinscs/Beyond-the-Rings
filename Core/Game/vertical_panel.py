@@ -44,7 +44,7 @@ class VerticalPanel:
         self.hint_font = pygame.font.Font(None, 16)  # Small font size
         self.hint_text = "press esc to toggle"
         self.hint_surface = self.hint_font.render(self.hint_text, True, (150, 150, 150))  # Light gray color
-        self.hint_rect = self.hint_surface.get_rect(centerx=self.width // 2, y=10)  # Position at the top
+        self.hint_rect = self.hint_surface.get_rect(centerx=self.width // 2, y=17)  # Increased from 15 to 17
 
         # Load hover sound effect
         try:
@@ -65,7 +65,7 @@ class VerticalPanel:
         button_height = 40
         button_spacing = 12  # Reduced from 15 to 14
         start_x = 10  # Offset from left edge of panel
-        start_y = 25  # Offset from top of panel
+        start_y = 30  # Increased from 25 to 30 to move buttons down by 5 pixels
 
         # Create buttons with their respective actions
         self.buttons = [
