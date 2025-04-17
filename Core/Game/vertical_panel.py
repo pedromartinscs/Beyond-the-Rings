@@ -11,8 +11,8 @@ class VerticalPanel:
         self.width = 200
         self.height = 350
         self.visible = False
-        self.x = 0  # Changed from -self.width to 0
-        self.y = (screen.get_height() - self.height) // 2  # Center vertically
+        self.x = -self.width  # Start off-screen to the left
+        self.y = (screen.get_height() - self.height) // 2 - 10  # Center vertically and move up 10 pixels
         self.speed = 10  # Animation speed
         self.target_x = self.x
         self.handle_width = 20  # Width of the visible handle when hidden
