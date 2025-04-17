@@ -6,6 +6,7 @@ class ObjectCollection:
         self.objects = {}  # Dictionary to store objects by type
         self.small_objects = {}  # Dictionary for 32x32 objects
         self.large_objects = {}  # Dictionary for 64x64 objects
+        self.huge_objects = {}   # Dictionary for 128x128 objects
         self.load_objects()
 
     def load_objects(self):
@@ -18,6 +19,7 @@ class ObjectCollection:
             if os.path.isdir(type_path):  # Check if it's a directory
                 self.small_objects[object_type] = []
                 self.large_objects[object_type] = []
+                self.huge_objects[object_type] = []
                 
                 # Load all objects of this type
                 for filename in os.listdir(type_path):
@@ -34,15 +36,18 @@ class ObjectCollection:
                                 
                                 # Determine object size based on image dimensions
                                 width, height = image.get_size()
-                                is_large = width == 64 and height == 64
-                                
-                                # Scale the image appropriately
-                                if is_large:
+                                if width == 128 and height == 128:
+                                    image = pygame.transform.scale(image, (128, 128))
+                                    target_dict = self.huge_objects
+                                    size = 'huge'
+                                elif width == 64 and height == 64:
                                     image = pygame.transform.scale(image, (64, 64))
                                     target_dict = self.large_objects
+                                    size = 'large'
                                 else:
                                     image = pygame.transform.scale(image, (32, 32))
                                     target_dict = self.small_objects
+                                    size = 'small'
                                 
                                 # Store the object information
                                 target_dict[object_type].append({
@@ -50,7 +55,7 @@ class ObjectCollection:
                                     'image': image,
                                     'type': object_type,
                                     'filename': filename,
-                                    'size': 'large' if is_large else 'small'
+                                    'size': size
                                 })
                         except ValueError:
                             continue
@@ -60,6 +65,7 @@ class ObjectCollection:
                 # Sort objects by their ID
                 self.small_objects[object_type].sort(key=lambda x: x['id'])
                 self.large_objects[object_type].sort(key=lambda x: x['id'])
+                self.huge_objects[object_type].sort(key=lambda x: x['id'])
 
     def get_objects_by_type(self, object_type, size=None):
         """Return all objects of a specific type and size"""
@@ -67,24 +73,31 @@ class ObjectCollection:
             return self.small_objects.get(object_type, [])
         elif size == 'large':
             return self.large_objects.get(object_type, [])
+        elif size == 'huge':
+            return self.huge_objects.get(object_type, [])
         else:
-            # Return all objects of the type, small first, then large
+            # Return all objects of the type, small first, then large, then huge
             return (self.small_objects.get(object_type, []) + 
-                   self.large_objects.get(object_type, []))
+                   self.large_objects.get(object_type, []) +
+                   self.huge_objects.get(object_type, []))
 
     def get_object(self, obj_type, obj_id, size='small'):
         """Get an object by its type and ID.
         Args:
             obj_type (str): The type of object (e.g., "Trees")
             obj_id (int): The ID of the object
-            size (str): The size of the object ('small' or 'large')
+            size (str): The size of the object ('small', 'large', or 'huge')
         Returns:
             pygame.Surface: The object's image, or None if not found
         """
         if size == 'small':
             objects = self.small_objects.get(obj_type, [])
-        else:
+        elif size == 'large':
             objects = self.large_objects.get(obj_type, [])
+        elif size == 'huge':
+            objects = self.huge_objects.get(obj_type, [])
+        else:
+            objects = []
         
         for obj in objects:
             if obj['id'] == obj_id:
@@ -97,6 +110,9 @@ class ObjectCollection:
             return sum(len(objects) for objects in self.small_objects.values())
         elif size == 'large':
             return sum(len(objects) for objects in self.large_objects.values())
+        elif size == 'huge':
+            return sum(len(objects) for objects in self.huge_objects.values())
         else:
             return (sum(len(objects) for objects in self.small_objects.values()) +
-                   sum(len(objects) for objects in self.large_objects.values())) 
+                   sum(len(objects) for objects in self.large_objects.values()) +
+                   sum(len(objects) for objects in self.huge_objects.values())) 
