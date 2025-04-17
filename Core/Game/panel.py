@@ -59,6 +59,16 @@ class Panel:
         self.handle_arrow_close = pygame.image.load(os.path.join('Images', 'middle_horizontal_handle_close.png'))
         self.handle_arrow_close = pygame.transform.scale(self.handle_arrow_close, (self.arrow_width, self.handle_height))
 
+        # Tooltip properties
+        self.tooltip_font = pygame.font.Font(None, 14)  # Font for tooltip text
+        self.tooltip_padding = 8  # Padding around tooltip text
+        self.tooltip_margin = 5  # Margin between box and tooltip
+        self.tooltip_bg_color = (40, 40, 40)  # Dark gray background
+        self.tooltip_text_color = (255, 255, 255)  # White text
+        self.tooltip_border_color = (100, 100, 100)  # Light gray border
+        self.tooltip_border_width = 1
+        self.current_tooltip = None  # Currently displayed tooltip
+
         # Create cached surfaces
         self.create_cached_surfaces()
 
@@ -255,6 +265,47 @@ class Panel:
         else:
             self.current_y = min(target_y, self.current_y + self.speed)
 
+    def render_tooltip(self, box, mouse_pos):
+        """Render the tooltip for a box with truncated text"""
+        if not box['is_wrapped']:
+            return None
+
+        # Calculate tooltip position (above the box)
+        tooltip_x = box['rect'].x + self.middle_area_pos[0]
+        tooltip_y = box['rect'].y + self.middle_area_pos[1] - self.tooltip_margin
+
+        # Wrap the full description for the tooltip
+        tooltip_lines = self.wrap_text(box['description'], self.tooltip_font, 300)[0]  # 300px max width for tooltip
+        
+        # Calculate tooltip dimensions
+        max_width = max(self.tooltip_font.size(line)[0] for line in tooltip_lines)
+        total_height = len(tooltip_lines) * self.tooltip_font.get_height()
+        
+        # Create tooltip surface
+        tooltip_width = max_width + (self.tooltip_padding * 2)
+        tooltip_height = total_height + (self.tooltip_padding * 2)
+        tooltip_surface = pygame.Surface((tooltip_width, tooltip_height))
+        tooltip_surface.fill(self.tooltip_bg_color)
+        
+        # Draw border
+        pygame.draw.rect(tooltip_surface, self.tooltip_border_color, 
+                        (0, 0, tooltip_width, tooltip_height), self.tooltip_border_width)
+        
+        # Render text
+        y_offset = self.tooltip_padding
+        for line in tooltip_lines:
+            text_surface = self.tooltip_font.render(line, True, self.tooltip_text_color)
+            tooltip_surface.blit(text_surface, (self.tooltip_padding, y_offset))
+            y_offset += self.tooltip_font.get_height()
+        
+        # Adjust position to ensure tooltip stays on screen
+        if tooltip_x + tooltip_width > self.screen.get_width():
+            tooltip_x = self.screen.get_width() - tooltip_width
+        if tooltip_y - tooltip_height < 0:
+            tooltip_y = box['rect'].y + self.middle_area_pos[1] + box['rect'].height + self.tooltip_margin
+        
+        return (tooltip_surface, (tooltip_x, tooltip_y - tooltip_height))
+
     def render(self):
         # Calculate target positions
         if self.visible:
@@ -278,6 +329,10 @@ class Panel:
             middle_x = self.middle_area_pos[0]
             middle_y = panel_y + self.middle_area_pos[1]
             self.screen.blit(self.middle_area, (middle_x, middle_y))
+            
+            # Get mouse position
+            mouse_pos = pygame.mouse.get_pos()
+            self.current_tooltip = None  # Reset current tooltip
             
             # Render buttons and boxes
             for box in self.description_boxes:
@@ -323,8 +378,19 @@ class Panel:
                 
                 # Draw box
                 self.screen.blit(box_surface, (middle_x + box['rect'].x, middle_y + box['rect'].y))
+                
+                # Check if mouse is over box and text is wrapped
+                box_rect = pygame.Rect(middle_x + box['rect'].x, middle_y + box['rect'].y, 
+                                     box['rect'].width, box['rect'].height)
+                if box_rect.collidepoint(mouse_pos) and box['is_wrapped']:
+                    self.current_tooltip = self.render_tooltip(box, mouse_pos)
             
             self.screen.blit(self.right_area, (self.right_area_pos[0], panel_y + self.right_area_pos[1]))
+            
+            # Draw tooltip if needed
+            if self.current_tooltip:
+                tooltip_surface, tooltip_pos = self.current_tooltip
+                self.screen.blit(tooltip_surface, tooltip_pos)
         
         # Calculate handle position
         if self.visible or self.current_y < self.screen.get_height() - self.handle_height:
