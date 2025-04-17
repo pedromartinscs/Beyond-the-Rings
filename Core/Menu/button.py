@@ -17,19 +17,28 @@ class Button:
         
         # Load the button image if provided
         if self.image_path:
-            self.button_image = pygame.image.load(self.image_path)
-            self.button_image = pygame.transform.scale(self.button_image, (self.rect.width, self.rect.height))  # Scale image to button size
+            self.image = pygame.image.load(self.image_path)
+            self.image = pygame.transform.scale(self.image, (self.rect.width, self.rect.height))  # Scale image to button size
+        else:
+            self.image = None
 
         # Load the glow image if provided
         if self.glow_image_path:
             self.glow_image = pygame.image.load(self.glow_image_path)
             self.glow_image = pygame.transform.scale(self.glow_image, (self.rect.width, self.rect.height))  # Scale glow image to button size
+        else:
+            self.glow_image = None
 
         # Initial glow parameters
         self.glow_alpha = 200  # Initial glow transparency
         self.glow_speed = 10  # Higher speed = faster glow
         self.glow_width = self.rect.width + 3  # Glow width larger than the button
         self.glow_height = self.rect.height + 3  # Glow height larger than the button
+
+    def render_text(self, surface):
+        """Render the button text onto the given surface"""
+        text_rect = self.text_surface.get_rect(center=(surface.get_width() // 2, surface.get_height() // 2))
+        surface.blit(self.text_surface, text_rect)
 
     def draw(self, screen):
         mouse_pos = pygame.mouse.get_pos()
@@ -64,7 +73,7 @@ class Button:
             screen.blit(glow_scaled, glow_rect)  # Draw the glow
 
             # Draw the button image
-            screen.blit(self.button_image, self.rect.topleft)
+            screen.blit(self.image, self.rect.topleft)
 
             if mouse_pressed[0]:  # Left-click pressed
                 self.clicked_state = True
@@ -74,7 +83,7 @@ class Button:
             self.is_hovered = False
             self.clicked_state = False
             # Draw the button image when not hovered
-            screen.blit(self.button_image, self.rect.topleft)
+            screen.blit(self.image, self.rect.topleft)
 
         # Draw the button text on top of the image (if desired)
         screen.blit(self.text_surface, self.text_rect)

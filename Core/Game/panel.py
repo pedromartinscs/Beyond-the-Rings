@@ -19,6 +19,26 @@ class Panel:
         self.middle = pygame.image.load(os.path.join('Images', 'middle_horizontal_menu.png'))
         self.middle = pygame.transform.scale(self.middle, (1, self.height))  # 1px wide, 200px tall
 
+        # Create cached surfaces
+        self.create_cached_surfaces()
+
+    def create_cached_surfaces(self):
+        """Create and cache the panel surfaces"""
+        # Create the base panel surface
+        self.base_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        
+        # Draw left cap
+        self.base_surface.blit(self.left_cap, (0, 0))
+        
+        # Draw right cap
+        self.base_surface.blit(self.right_cap, (self.width - 41, 0))
+        
+        # Draw stretched middle
+        middle_width = self.width - 82  # 41px left + 41px right
+        if middle_width > 0:
+            stretched_middle = pygame.transform.scale(self.middle, (middle_width, self.height))
+            self.base_surface.blit(stretched_middle, (41, 0))
+
     def show(self):
         # Show the panel (slide it in)
         self.visible = True
@@ -43,16 +63,9 @@ class Panel:
 
     def render(self):
         if self.visible:  # Only render if the panel is visible
-            # Draw the panel at the current Y position
             self.animate_panel(self.screen.get_height() - self.height)
         else:
             self.animate_panel(self.screen.get_height() - self.handle_height)
-        # Draw left cap
-        self.screen.blit(self.left_cap, (0, self.current_y))
-        # Draw right cap
-        self.screen.blit(self.right_cap, (self.width - 41, self.current_y))
-        # Draw stretched middle
-        middle_width = self.width - 82  # 41px left + 41px right
-        if middle_width > 0:
-            stretched_middle = pygame.transform.scale(self.middle, (middle_width, self.height))
-            self.screen.blit(stretched_middle, (41, self.current_y))
+        
+        # Draw the cached panel surface at the current position
+        self.screen.blit(self.base_surface, (0, self.current_y))

@@ -11,7 +11,7 @@ class VerticalPanel:
         self.width = 200
         self.height = 350
         self.visible = False
-        self.x = -self.width  # Start completely hidden
+        self.x = 0  # Changed from -self.width to 0
         self.y = (screen.get_height() - self.height) // 2  # Center vertically
         self.speed = 10  # Animation speed
         self.target_x = self.x
@@ -56,6 +56,9 @@ class VerticalPanel:
 
         # Create buttons
         self.create_buttons()
+
+        # Create cached surfaces
+        self.create_cached_surfaces()
 
     def create_buttons(self):
         button_width = 180  # Slightly smaller than panel width
@@ -124,7 +127,7 @@ class VerticalPanel:
 
     def is_handle_clicked(self, pos):
         # Handle is always at the right of the panel
-        handle_x = self.x + self.width if self.visible else 0
+        handle_x = 0 if not self.visible else self.x + self.width
         handle_rect = pygame.Rect(handle_x, self.y, self.handle_width, self.height)
         return handle_rect.collidepoint(pos)
 
@@ -155,10 +158,16 @@ class VerticalPanel:
         if event.type == pygame.MOUSEMOTION:
             hovered_button = None
             for button in self.buttons:
-                # Use the button's is_hovered property which is set in the draw method
+                # Adjust button position relative to panel for hover detection
+                button_rect = pygame.Rect(
+                    button.rect.x + self.x,
+                    button.rect.y + self.y,
+                    button.rect.width,
+                    button.rect.height
+                )
+                button.is_hovered = button_rect.collidepoint(event.pos)
                 if button.is_hovered:
                     hovered_button = button
-                    break
 
             # If the hovered button is different from the previous one, play the hover sound
             if hovered_button and hovered_button != self.hovered_button:
@@ -190,51 +199,73 @@ class VerticalPanel:
             if next_screen:
                 return next_screen
 
+    def create_cached_surfaces(self):
+        """Create and cache the static parts of the panel"""
+        # Create the base panel surface (background + static button parts)
+        self.base_surface = pygame.Surface((self.width, self.height), pygame.SRCALPHA)
+        self.base_surface.blit(self.background_image, (0, 0))
+        self.base_surface.blit(self.hint_surface, self.hint_rect)
+
+        # Pre-render button states
+        self.button_states = {}
+        for button in self.buttons:
+            # Cache normal state
+            normal_surface = pygame.Surface((button.rect.width, button.rect.height), pygame.SRCALPHA)
+            normal_surface.blit(button.image, (0, 0))
+            button.render_text(normal_surface)  # Add text to normal state
+
+            # Cache glow state
+            glow_surface = pygame.Surface((button.rect.width, button.rect.height), pygame.SRCALPHA)
+            glow_surface.blit(button.glow_image, (0, 0))  # First draw glow image
+            glow_surface.blit(button.image, (0, 0))  # Then draw button image on top
+            button.render_text(glow_surface)  # Finally draw text on top of everything
+
+            self.button_states[button] = {
+                'normal': normal_surface,
+                'glow': glow_surface
+            }
+
+        # Cache handle states
+        self.handle_open_cached = self.handle_open.copy()
+        self.handle_close_cached = self.handle_close.copy()
+
+        # Cache the panel rect for dirty rectangle rendering
+        self.panel_rect = pygame.Rect(0, 0, self.width + self.handle_width, self.height)
+        self.last_rect = None
+
     def render(self):
-        # Draw the panel if visible or animating
-        if self.visible or self.is_animating:
-            # Clear the panel surface
-            self.surface.fill((0, 0, 0, 0))  # Clear with transparent color
-            
-            # Draw the background image
-            self.surface.blit(self.background_image, (0, 0))
-            
-            # Draw the hint text
-            self.surface.blit(self.hint_surface, self.hint_rect)
-            
-            # Draw the panel
-            self.screen.blit(self.surface, (self.x, self.y))
-            
-            # Draw buttons if panel is visible
-            if self.visible:
-                # Draw each button directly on the screen
-                for i, button in enumerate(self.buttons):
-                    # Store original position
-                    original_x, original_y = button.rect.x, button.rect.y
-                    
-                    # Adjust button position relative to panel
-                    button.rect.x += self.x
-                    button.rect.y += self.y
-                    button.text_rect.center = button.rect.center
-                    
-                    # Draw button directly on screen
-                    button.draw(self.screen)
-                    
-                    # Restore original position
-                    button.rect.x, button.rect.y = original_x, original_y
-                    button.text_rect.center = button.rect.center
+        # Always render the handle, regardless of panel visibility
+        handle_x = 0 if not self.visible else self.x + self.width
+        handle_image = self.handle_close_cached if self.visible else self.handle_open_cached
+        self.screen.blit(handle_image, (handle_x, self.y))
+
+        # Only render the panel if visible or animating
+        if not (self.visible or self.is_animating):
+            return
+
+        # Calculate current rect for dirty rectangle rendering
+        current_rect = self.panel_rect.copy()
+        current_rect.x = self.x
+        current_rect.y = self.y
+
+        # Start with a clean copy of the base surface
+        panel_surface = self.base_surface.copy()
         
-        # Calculate current alpha value for pulsating effect using time
-        time_elapsed = pygame.time.get_ticks() / 1000.0
-        pulse_factor = math.sin(time_elapsed * self.glow_speed)  # Use sine wave for smooth pulsing
-        current_alpha = int((pulse_factor + 1) / 2 * (self.max_alpha - self.min_alpha) + self.min_alpha)
+        # Draw buttons with appropriate state
+        for button in self.buttons:
+            # Get button states
+            states = self.button_states[button]
+            rel_x, rel_y = button.rect.x, button.rect.y
+            
+            # Use pre-rendered states
+            surface = states['glow'] if button.is_hovered else states['normal']
+            panel_surface.blit(surface, (rel_x, rel_y))
         
-        # Draw the handle with appropriate image based on state and pulsating alpha
-        handle_x = self.x + self.width if self.visible or self.is_animating else 0
-        handle_image = self.handle_close if self.visible else self.handle_open
-        
-        # Create a copy of the handle image with the current alpha
-        handle_copy = handle_image.copy()
-        handle_copy.fill((255, 255, 255, current_alpha), special_flags=pygame.BLEND_RGBA_MULT)
-        
-        self.screen.blit(handle_copy, (handle_x, self.y)) 
+        # Draw the panel
+        self.screen.blit(panel_surface, (self.x, self.y))
+
+        # Update dirty rectangles
+        if self.last_rect:
+            pygame.display.update(self.last_rect)
+        pygame.display.update(current_rect)
+        self.last_rect = current_rect 

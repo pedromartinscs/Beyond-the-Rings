@@ -290,11 +290,19 @@ class Game:
         world_x = int(rel_x / self.minimap_scale)
         world_y = int(rel_y / self.minimap_scale)
         
+        # Store old camera position to check if it changed
+        old_camera_x = self.camera_x
+        old_camera_y = self.camera_y
+        
         # Center the camera on the clicked position
         self.camera_x = max(0, min(world_x - self.camera_width // 2, 
                                  self.map_width * self.tile_size - self.camera_width))
         self.camera_y = max(0, min(world_y - self.camera_height // 2,
                                  self.map_height * self.tile_size - self.camera_height))
+        
+        # Set camera_moved flag if position changed
+        if old_camera_x != self.camera_x or old_camera_y != self.camera_y:
+            self.camera_moved = True
 
     def update_visible_area(self):
         """Update the visible area rectangle based on camera position"""
@@ -368,27 +376,40 @@ class Game:
         visible_top = self.camera_y - 100
         visible_bottom = self.camera_y + self.screen_height + 100
         
+        # Pre-calculate tile size for faster access
+        tile_size = self.tile_size
+        
+        # Pre-calculate half tile size for offset calculations
+        half_tile = tile_size // 2
+        
         for obj in self.objects:
             # Calculate object's world position in pixels
-            obj_world_x = obj['x'] * self.tile_size
-            obj_world_y = obj['y'] * self.tile_size
+            obj_world_x = obj['x'] * tile_size
+            obj_world_y = obj['y'] * tile_size
             
             # Get object dimensions
             obj_width = obj['image'].get_width()
             obj_height = obj['image'].get_height()
             
+            # Check if object is in view with padding using simple bounds check
+            if (obj_world_x + obj_width < visible_left or 
+                obj_world_x > visible_right or
+                obj_world_y + obj_height < visible_top or
+                obj_world_y > visible_bottom):
+                continue
+            
             # Calculate object's screen position
             obj_screen_x = obj_world_x - self.camera_x
             obj_screen_y = obj_world_y - self.camera_y
             
-            # Check if object is in view with padding
-            if (visible_left - obj_width <= obj_world_x <= visible_right + obj_width and 
-                visible_top - obj_height <= obj_world_y <= visible_bottom + obj_height):
-                self.visible_objects_cache.append({
-                    'obj': obj,
-                    'screen_x': obj_screen_x - (obj['offset'] - self.tile_size // 2),
-                    'screen_y': obj_screen_y - (obj['offset'] - self.tile_size // 2)
-                })
+            # Calculate offset for centering
+            offset = obj['offset'] - half_tile
+            
+            self.visible_objects_cache.append({
+                'obj': obj,
+                'screen_x': obj_screen_x - offset,
+                'screen_y': obj_screen_y - offset
+            })
 
         # Sort visible objects by z-index once
         self.visible_objects_cache.sort(key=lambda x: x['obj']['z_index'])
@@ -397,12 +418,6 @@ class Game:
     def render(self):
         # Clear the screen before rendering
         self.screen.fill((0, 0, 0))  # Black background
-
-        # Calculate visible area in tiles
-        start_tile_x = max(0, self.camera_x // self.tile_size)
-        start_tile_y = max(0, self.camera_y // self.tile_size)
-        end_tile_x = min(self.map_width, start_tile_x + (self.camera_width // self.tile_size) + 2)
-        end_tile_y = min(self.map_height, start_tile_y + (self.camera_height // self.tile_size) + 2)
 
         # Clear dirty rectangles from last frame
         self.dirty_rects = []
@@ -413,14 +428,38 @@ class Game:
             # Update visible objects when camera moves
             self.update_visible_objects()
 
-        # Render only visible tiles
-        for y in range(start_tile_y, end_tile_y):
-            for x in range(start_tile_x, end_tile_x):
-                screen_x = x * self.tile_size - self.camera_x
-                screen_y = y * self.tile_size - self.camera_y
-                tile_index = self.map[y][x]
-                if 0 <= tile_index < len(self.tiles):
-                    self.screen.blit(self.tiles[tile_index], (screen_x, screen_y))
+        # Calculate exact camera position in tiles (floating point)
+        camera_tile_x = self.camera_x / self.tile_size
+        camera_tile_y = self.camera_y / self.tile_size
+
+        # Calculate visible area in tiles with extra buffer, ensuring we round down
+        start_tile_x = max(0, int(camera_tile_x - 1))
+        start_tile_y = max(0, int(camera_tile_y - 1))
+        end_tile_x = min(self.map_width, start_tile_x + (self.camera_width // self.tile_size) + 3)
+        end_tile_y = min(self.map_height, start_tile_y + (self.camera_height // self.tile_size) + 3)
+
+        # Calculate precise pixel offsets
+        offset_x = -(self.camera_x - start_tile_x * self.tile_size)
+        offset_y = -(self.camera_y - start_tile_y * self.tile_size)
+
+        # Calculate the source rectangle for the map surface
+        source_rect = pygame.Rect(
+            start_tile_x * self.tile_size,
+            start_tile_y * self.tile_size,
+            (end_tile_x - start_tile_x) * self.tile_size,
+            (end_tile_y - start_tile_y) * self.tile_size
+        )
+
+        # Calculate the destination rectangle using precise offsets
+        dest_rect = pygame.Rect(
+            int(offset_x),
+            int(offset_y),
+            source_rect.width,
+            source_rect.height
+        )
+
+        # Blit the visible portion of the pre-rendered map
+        self.screen.blit(self.map_surface, dest_rect, source_rect)
 
         # Render visible objects
         for obj_data in self.visible_objects_cache:
