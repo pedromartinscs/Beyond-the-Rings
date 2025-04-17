@@ -15,6 +15,11 @@ class Panel:
         self.cap_width = 60  # Width of the left and right caps
         self.arrow_width = 20  # Width of the arrow section
 
+        # Add tooltip timer properties
+        self.tooltip_timer = 0  # Timer for tooltip delay
+        self.tooltip_delay = 1500  # 2 seconds in milliseconds
+        self.hovered_box = None  # Currently hovered box
+
         # Add hint text properties
         self.hint_font = pygame.font.Font(None, 16)  # Font for hint text
         self.hint_text = "press SPACE to toggle"
@@ -373,6 +378,9 @@ class Panel:
             mouse_pos = pygame.mouse.get_pos()
             self.current_tooltip = None  # Reset current tooltip
             
+            # Check if mouse is over any box
+            current_hovered_box = None
+            
             # Render buttons and boxes
             for box in self.description_boxes:
                 button = box['button']
@@ -422,7 +430,21 @@ class Panel:
                 box_rect = pygame.Rect(middle_x + box['rect'].x, middle_y + box['rect'].y, 
                                      box['rect'].width, box['rect'].height)
                 if box_rect.collidepoint(mouse_pos) and box['is_wrapped']:
-                    self.current_tooltip = self.render_tooltip(box, mouse_pos)
+                    current_hovered_box = box
+            
+            # Update tooltip timer and show tooltip if needed
+            if current_hovered_box:
+                if self.hovered_box != current_hovered_box:
+                    # Mouse just entered a new box
+                    self.hovered_box = current_hovered_box
+                    self.tooltip_timer = pygame.time.get_ticks()
+                elif pygame.time.get_ticks() - self.tooltip_timer >= self.tooltip_delay:
+                    # Show tooltip after delay
+                    self.current_tooltip = self.render_tooltip(current_hovered_box, mouse_pos)
+            else:
+                # Mouse is not over any box
+                self.hovered_box = None
+                self.tooltip_timer = 0
             
             self.screen.blit(self.right_area, (self.right_area_pos[0], panel_y + self.right_area_pos[1]))
         
