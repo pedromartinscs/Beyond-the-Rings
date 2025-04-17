@@ -68,31 +68,96 @@ class Panel:
         button_height = 32
         
         # Grid dimensions
-        num_rows = 4
-        num_cols = 5
-        
-        # Calculate total space needed for buttons
-        total_button_width = num_cols * button_width
-        total_button_height = num_rows * button_height
+        max_rows = 4
+        max_cols = 6
+        total_buttons = 3  # Only create 4 buttons
         
         # Calculate spacing between buttons
-        spacing_x = (self.middle_area_width - total_button_width) // (num_cols - 1)
-        spacing_y = (self.area_height - total_button_height) // (num_rows - 1)
+        spacing_x = 8  # Fixed spacing between buttons
+        spacing_y = 8  # Fixed spacing between rows
         
-        # Create buttons
+        # Calculate actual number of columns needed (up to max_cols)
+        actual_cols = min(max_cols, total_buttons)
+        
+        # Calculate column positions and box width
+        column_positions = []
+        total_width = self.middle_area_width - (spacing_x * (actual_cols - 1))
+        box_width = (total_width - (button_width * actual_cols)) // actual_cols
+        
+        # Calculate starting x position to center the buttons
+        start_x = (self.middle_area_width - (actual_cols * (button_width + box_width + spacing_x) - spacing_x)) // 2
+        
+        for col in range(actual_cols):
+            x = start_x + col * (button_width + spacing_x + box_width)
+            column_positions.append(x)
+        
+        # Create buttons and their description boxes
         self.middle_buttons = []
-        for row in range(num_rows):
-            for col in range(num_cols):
-                x = col * (button_width + spacing_x)
-                y = row * (button_height + spacing_y)
+        self.description_boxes = []
+        
+        # Create fonts for title and description
+        self.title_font = pygame.font.Font(None, 16)  # Bold font for title
+        self.description_font = pygame.font.Font(None, 14)  # Regular font for description
+        
+        # Box color and margin
+        self.box_color = (48, 82, 101)
+        self.box_margin = 1
+        
+        for i in range(total_buttons):
+            # Calculate row and column
+            col = i % actual_cols
+            row = i // actual_cols
+            
+            # Skip if we exceed max rows
+            if row >= max_rows:
+                break
                 
-                button = Button(
-                    x, y, 0, 0, button_width, button_height,
-                    "", None,  # No text or action for now
-                    "Images/tiny_button_basic.png",
-                    "Images/tiny_button_basic.png"  # Using same image for both states for now
-                )
-                self.middle_buttons.append(button)
+            # Calculate button position
+            x = column_positions[col]
+            y = row * (button_height + spacing_y)
+            
+            # Create button
+            button = Button(
+                x, y, 0, 0, button_width, button_height,
+                "", None,  # No text or action for now
+                "Images/tiny_button_basic.png",
+                "Images/tiny_button_basic.png"  # Using same image for both states for now
+            )
+            
+            # Create description box
+            box = {
+                'rect': pygame.Rect(x + button_width + self.box_margin, y, box_width, button_height),
+                'title': "Mock Title",
+                'description': "Mock Description that might be longer than one line and needs to wrap",
+                'button': button,
+                'lines': []  # Will store wrapped description lines
+            }
+            
+            self.middle_buttons.append(button)
+            self.description_boxes.append(box)
+
+    def wrap_text(self, text, font, max_width):
+        """Wrap text to fit within max_width"""
+        words = text.split(' ')
+        lines = []
+        current_line = []
+        
+        for word in words:
+            # Create a test line with the new word
+            test_line = ' '.join(current_line + [word])
+            test_width = font.size(test_line)[0]
+            
+            if test_width <= max_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+        
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        return lines
 
     def create_cached_surfaces(self):
         """Create and cache the panel and handle surfaces"""
@@ -194,11 +259,51 @@ class Panel:
             middle_x = self.middle_area_pos[0]
             middle_y = panel_y + self.middle_area_pos[1]
             self.screen.blit(self.middle_area, (middle_x, middle_y))
-            for button in self.middle_buttons:
+            
+            # Render buttons and boxes
+            for box in self.description_boxes:
+                button = box['button']
                 button_rect = button.rect.copy()
                 button_rect.x += middle_x
                 button_rect.y += middle_y
+                
+                # Draw button
                 self.screen.blit(button.image, button_rect)
+                
+                # Update box position
+                box['rect'].x = button.rect.x + button.rect.width + self.box_margin
+                box['rect'].y = button.rect.y
+                
+                # Wrap description text if needed
+                if not box['lines']:
+                    box['lines'] = self.wrap_text(box['description'], self.description_font, box['rect'].width - 8)
+                
+                # Calculate box height based on content
+                title_height = self.title_font.get_height()
+                desc_height = len(box['lines']) * self.description_font.get_height()
+                box_height = title_height + desc_height + 8  # 8px padding
+                box['rect'].height = max(box_height, button.rect.height)
+                
+                # Draw box background
+                box_surface = pygame.Surface((box['rect'].width, box['rect'].height), pygame.SRCALPHA)
+                box_surface.fill(self.box_color)
+                
+                # Render title
+                title_surface = self.title_font.render(box['title'], True, (255, 255, 255))
+                title_x = (box['rect'].width - title_surface.get_width()) // 2
+                title_y = 4  # Small padding from top
+                box_surface.blit(title_surface, (title_x, title_y))
+                
+                # Render description lines
+                desc_y = title_y + title_height + 2
+                for line in box['lines']:
+                    desc_surface = self.description_font.render(line, True, (200, 200, 200))
+                    desc_x = (box['rect'].width - desc_surface.get_width()) // 2
+                    box_surface.blit(desc_surface, (desc_x, desc_y))
+                    desc_y += self.description_font.get_height()
+                
+                # Draw box
+                self.screen.blit(box_surface, (middle_x + box['rect'].x, middle_y + box['rect'].y))
             
             self.screen.blit(self.right_area, (self.right_area_pos[0], panel_y + self.right_area_pos[1]))
         
