@@ -273,11 +273,9 @@ class Panel:
         # Calculate tooltip position relative to the box
         tooltip_x = box['rect'].x + self.middle_area_pos[0]
         
-        # Position tooltip above the box, but not too far up
-        # Use the panel's current_y position to determine available space
-        panel_top = self.current_y
-        box_top = box['rect'].y + self.middle_area_pos[1]
-        available_space_above = box_top - panel_top
+        # Calculate the box's absolute position on screen
+        box_top = self.current_y + self.middle_area_pos[1] + box['rect'].y
+        box_bottom = box_top + box['rect'].height
         
         # Wrap the full description for the tooltip (without ellipsis)
         tooltip_lines = []
@@ -326,10 +324,12 @@ class Panel:
             tooltip_x = self.screen.get_width() - tooltip_width
         
         # Position tooltip above the box if there's enough space, otherwise below
-        if available_space_above >= tooltip_height + self.tooltip_margin:
-            tooltip_y = box_top - tooltip_height - self.tooltip_margin
-        else:
-            tooltip_y = box_top + box['rect'].height + self.tooltip_margin
+        # Since the panel is at the bottom, we'll prefer to show tooltips above the box
+        tooltip_y = box_top - tooltip_height - self.tooltip_margin
+        
+        # If the tooltip would go off-screen above, show it below the box
+        if tooltip_y < 0:
+            tooltip_y = box_bottom + self.tooltip_margin
         
         return (tooltip_surface, (tooltip_x, tooltip_y))
 
