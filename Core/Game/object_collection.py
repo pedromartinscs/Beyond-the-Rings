@@ -20,8 +20,6 @@ class ObjectCollection:
         for object_type in os.listdir(base_path):
             type_path = os.path.join(base_path, object_type)
             if os.path.isdir(type_path):  # Check if it's a directory
-                print(f"Loading objects from {object_type}...")
-                
                 # Load all objects of this type
                 for filename in os.listdir(type_path):
                     if filename.endswith(".png"):
@@ -80,7 +78,6 @@ class ObjectCollection:
                                     'filename': filename,
                                     'size': size
                                 })
-                                print(f"Loaded {obj_type} object {number} ({size}) from {os.path.normpath(type_path)}")
                         except ValueError as e:
                             print(f"Error parsing filename {filename}: {e}")
                             continue
@@ -95,13 +92,6 @@ class ObjectCollection:
                     self.large_objects[obj_type].sort(key=lambda x: x['id'])
                 for obj_type in self.huge_objects:
                     self.huge_objects[obj_type].sort(key=lambda x: x['id'])
-                
-                # Print summary for each type
-                for obj_type in set(list(self.small_objects.keys()) + list(self.large_objects.keys()) + list(self.huge_objects.keys())):
-                    small_count = len(self.small_objects.get(obj_type, []))
-                    large_count = len(self.large_objects.get(obj_type, []))
-                    huge_count = len(self.huge_objects.get(obj_type, []))
-                    print(f"Loaded {small_count} small, {large_count} large, and {huge_count} huge objects of type {obj_type}")
 
     def get_objects_by_size(self, size=None):
         """Return all objects of a specific size, or all objects ordered by size if no size is specified.

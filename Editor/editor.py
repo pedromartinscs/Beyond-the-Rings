@@ -255,8 +255,8 @@ class Editor:
         for y in range(start_y, map_area_height, self.tile_size):
             pygame.draw.line(map_surface, (50, 50, 50), (0, y), (map_area_width, y))
         
-        # Render objects (sorted by z-index)
-        for obj in sorted(self.objects, key=lambda x: x['z_index']):
+        # Render objects (sorted by z-index, then y, then x)
+        for obj in sorted(self.objects, key=lambda x: (x['z_index'], x['y'], x['x'])):
             obj_x = obj['x'] * self.tile_size - self.camera_x
             obj_y = obj['y'] * self.tile_size - self.camera_y
             
@@ -1080,31 +1080,49 @@ class Editor:
             return
 
         try:
-            with open(file_path, 'r') as f:
-                lines = [line.strip() for line in f if line.strip() and not line.startswith('#')]
+            with open(file_path, 'r') as file:
+                # Read all lines, ignoring comments and empty lines
+                lines = [line.strip() for line in file.readlines() if line.strip() and not line.strip().startswith('#')]
                 
-                # Read dimensions
-                dimensions = lines[0].split()
-                if len(dimensions) != 2:
-                    raise ValueError("Invalid dimensions format")
-                width, height = map(int, dimensions)
+                if not lines or len(lines) < 2:
+                    print(f"Error: Map file is empty or missing data")
+                    return
                 
-                # Validate dimensions
-                if width != self.map_width or height != self.map_height:
-                    raise ValueError(f"Map dimensions ({width}x{height}) do not match editor dimensions ({self.map_width}x{self.map_height})")
+                # Parse dimensions from first line
+                width, height = map(int, lines[0].split())
                 
                 # Read map tiles
-                self.map = []  # Changed from map_data to map
-                for i in range(1, height + 1):
-                    row = []
-                    for j in range(width):
-                        # Extract tile number from [00000] format
-                        tile_str = lines[i][j * 7:(j + 1) * 7]  # Each tile is 7 chars: [00000]
-                        tile_num = int(tile_str[1:-1])  # Remove brackets and convert to int
-                        row.append(tile_num)
-                    self.map.append(row)
+                self.map = []
+                for y in range(height):
+                    if y + 1 >= len(lines):
+                        print(f"Error: Missing row {y} in map data.")
+                        return
+                    
+                    # Extract tile numbers from [00000] format
+                    tiles = []
+                    line = lines[y + 1]
+                    i = 0
+                    while i < len(line):
+                        if line[i] == '[':
+                            # Find the closing bracket
+                            end = line.find(']', i)
+                            if end != -1:
+                                # Extract the number between brackets
+                                tile_num = int(line[i+1:end])
+                                tiles.append(tile_num)
+                                i = end + 1
+                            else:
+                                i += 1
+                        else:
+                            i += 1
+                    
+                    if len(tiles) != width:
+                        print(f"Error: Row {y} has {len(tiles)} tiles, expected {width}.")
+                        return
+                    
+                    self.map.append(tiles)
                 
-                # Read objects
+                # Read objects (if any)
                 self.objects = []
                 for line in lines[height + 1:]:
                     # Extract object data from [x][y][type][id][health][z-index] format
@@ -1123,37 +1141,66 @@ class Editor:
                             i += 1
                     
                     if len(obj_data) != 6:
-                        raise ValueError(f"Invalid object format: {line}")
+                        continue
                     
-                    x, y = map(int, obj_data[:2])
-                    obj_type = obj_data[2]
-                    obj_id = int(obj_data[3])
-                    health = int(obj_data[4])
-                    z_index = int(obj_data[5])
-                    
-                    # Get the object to determine its size and calculate offset
-                    obj = self.object_collection.get_object(obj_type, obj_id, 'small')
-                    if obj is None:
-                        obj = self.object_collection.get_object(obj_type, obj_id, 'large')
-                        offset = 32  # Large object
-                    else:
-                        offset = 16  # Small object
-                    
-                    self.objects.append({
-                        'x': x,
-                        'y': y,
-                        'type': obj_type,
-                        'id': obj_id,
-                        'health': health,
-                        'z_index': z_index,
-                        'offset': offset
-                    })
+                    try:
+                        x = int(obj_data[0])
+                        y = int(obj_data[1])
+                        obj_type = obj_data[2].lower()  # Convert to lowercase for consistency
+                        obj_id = int(obj_data[3])
+                        health = int(obj_data[4])
+                        z_index = int(obj_data[5])
+                        
+                        if 0 <= x < width and 0 <= y < height:
+                            # Try to get the object in all sizes
+                            obj_image = None
+                            offset = 16  # Default to small object offset
+                            
+                            # Try huge first
+                            obj_image = self.object_collection.get_object(obj_type, obj_id, 'huge')
+                            if obj_image:
+                                offset = 64
+                            else:
+                                # Try large
+                                obj_image = self.object_collection.get_object(obj_type, obj_id, 'large')
+                                if obj_image:
+                                    offset = 32
+                                else:
+                                    # Try small
+                                    obj_image = self.object_collection.get_object(obj_type, obj_id, 'small')
+                            
+                            if obj_image:
+                                self.objects.append({
+                                    'x': x,
+                                    'y': y,
+                                    'type': obj_type,
+                                    'id': obj_id,
+                                    'health': health,
+                                    'z_index': z_index,
+                                    'image': obj_image,
+                                    'offset': offset
+                                })
+                            else:
+                                print(f"Warning: Could not find object image for {obj_type} {obj_id}")
+                    except ValueError as e:
+                        print(f"Error parsing object data: {e}")
                 
-                print(f"Map loaded successfully with {len(self.objects)} objects")
+                # Update map dimensions
+                self.map_width = width
+                self.map_height = height
                 
+                # Update camera limits
+                self.camera_max_x = max(0, self.map_width * self.tile_size - self.screen_width)
+                self.camera_max_y = max(0, self.map_height * self.tile_size - self.screen_height)
+                
+                # Reset camera to top-left position
+                self.camera_x = 0
+                self.camera_y = 0
+                
+        except FileNotFoundError:
+            print(f"Map file not found")
         except Exception as e:
             print(f"Error loading map: {e}")
-            messagebox.showerror("Error", f"Failed to load map: {e}")
         finally:
             root.destroy()
 

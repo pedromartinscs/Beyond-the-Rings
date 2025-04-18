@@ -108,8 +108,6 @@ class Game:
         self.background_surface = pygame.Surface((self.screen_width, self.screen_height))
         self.background_surface.fill((0, 0, 0))  # Black background
 
-        print(f"Loaded {len(self.tile_cache)} unique tile images")
-
     def load_map(self, file_path):
         try:
             with open(file_path, 'r') as file:
@@ -178,19 +176,28 @@ class Game:
                     try:
                         x = int(obj_data[0])
                         y = int(obj_data[1])
-                        obj_type = obj_data[2]
+                        obj_type = obj_data[2].lower()  # Convert to lowercase for consistency
                         obj_id = int(obj_data[3])
                         health = int(obj_data[4])
                         z_index = int(obj_data[5])
                         
                         if 0 <= x < width and 0 <= y < height:
-                            # Try to get the object as small first, then large
-                            obj_image = self.object_collection.get_object(obj_type, obj_id, 'small')
-                            offset = 16
+                            # Try to get the object in all sizes
+                            obj_image = None
+                            offset = 16  # Default to small object offset
                             
-                            if obj_image is None:
+                            # Try huge first
+                            obj_image = self.object_collection.get_object(obj_type, obj_id, 'huge')
+                            if obj_image:
+                                offset = 64
+                            else:
+                                # Try large
                                 obj_image = self.object_collection.get_object(obj_type, obj_id, 'large')
-                                offset = 32
+                                if obj_image:
+                                    offset = 32
+                                else:
+                                    # Try small
+                                    obj_image = self.object_collection.get_object(obj_type, obj_id, 'small')
                             
                             if obj_image:
                                 self.objects.append({
@@ -203,6 +210,8 @@ class Game:
                                     'image': obj_image,
                                     'offset': offset
                                 })
+                            else:
+                                print(f"Warning: Could not find object image for {obj_type} {obj_id}")
                     except ValueError as e:
                         print(f"Error parsing object data: {e}")
                 
@@ -411,8 +420,8 @@ class Game:
                 'screen_y': obj_screen_y - offset
             })
 
-        # Sort visible objects by z-index once
-        self.visible_objects_cache.sort(key=lambda x: x['obj']['z_index'])
+        # Sort visible objects by z-index, then y, then x
+        self.visible_objects_cache.sort(key=lambda x: (x['obj']['z_index'], x['obj']['y'], x['obj']['x']))
         self.camera_moved = False
 
     def render(self):
