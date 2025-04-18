@@ -28,7 +28,7 @@ class Editor:
         self.objects = []  # List to store placed objects
         self.object_collection = ObjectCollection()
         self.selected_object = None
-        self.selected_object_type = "Trees"  # Default object type
+        self.selected_object_type = "tree"  # Set initial object type to tree
         
         # Object palette constants
         self.object_palette_width = 128  # Width of the object palette (4 columns * 32px)
@@ -377,20 +377,20 @@ class Editor:
         
         # Get objects for current page
         if self.showing_huge_objects:
-            objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'huge')
+            objects = self.object_collection.get_objects_by_size('huge')
             objects_per_page = self.objects_per_page_huge  # 1x1 grid for huge objects
             grid_size = 1
         elif self.showing_large_objects:
-            objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+            objects = self.object_collection.get_objects_by_size('large')
             objects_per_page = self.objects_per_page_large  # 2x2 grid for large objects
             grid_size = 2
         else:
-            objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+            objects = self.object_collection.get_objects_by_size('small')
             objects_per_page = self.objects_per_page  # 4x4 grid for small objects
             grid_size = 4
         
         # Calculate total pages and check if we should show right arrow
-        total_pages = (len(objects) + objects_per_page - 1) // objects_per_page
+        total_pages = (len(objects) + objects_per_page - 1) // objects_per_page if objects else 0
         show_right_arrow = self.current_object_page < total_pages - 1
         
         # If we're showing small objects and have large objects available, show right arrow to switch
@@ -413,6 +413,9 @@ class Editor:
         
         # Draw objects in grid
         for i in range(start_idx, end_idx):
+            if i >= len(objects):  # Safety check
+                break
+                
             obj = objects[i]
             row = (i - start_idx) // grid_size
             col = (i - start_idx) % grid_size
@@ -436,16 +439,16 @@ class Editor:
             self.screen.blit(obj['image'], rect.topleft)
             
             # Draw selection highlight
-            if self.selected_object and obj['id'] == self.selected_object['id']:
+            if self.selected_object and obj['id'] == self.selected_object['id'] and obj['type'] == self.selected_object['type']:
                 pygame.draw.rect(self.screen, (255, 255, 0), rect, 3)
 
     def get_total_object_pages(self):
         """Calculate total number of pages for current object type and size"""
         if self.showing_large_objects:
-            objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+            objects = self.object_collection.get_objects_by_size('large')
             objects_per_page = 4  # 2x2 grid
         else:
-            objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+            objects = self.object_collection.get_objects_by_size('small')
             objects_per_page = self.objects_per_page
         
         return (len(objects) + objects_per_page - 1) // objects_per_page
@@ -491,15 +494,15 @@ class Editor:
                 else:
                     # Calculate if right arrow should be visible
                     if self.showing_huge_objects:
-                        objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'huge')
+                        objects = self.object_collection.get_objects_by_size('huge')
                         total_pages = (len(objects) + self.objects_per_page_huge - 1) // self.objects_per_page_huge
                         show_right_arrow = self.current_object_page < total_pages - 1
                     elif self.showing_large_objects:
-                        objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+                        objects = self.object_collection.get_objects_by_size('large')
                         total_pages = (len(objects) + self.objects_per_page_large - 1) // self.objects_per_page_large
                         show_right_arrow = self.current_object_page < total_pages - 1 or self.object_collection.get_total_objects('huge') > 0
                     else:
-                        objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+                        objects = self.object_collection.get_objects_by_size('small')
                         total_pages = (len(objects) + self.objects_per_page - 1) // self.objects_per_page
                         show_right_arrow = self.current_object_page < total_pages - 1 or self.object_collection.get_total_objects('large') > 0
                     
@@ -523,7 +526,7 @@ class Editor:
                         if self.current_object_page == 0:
                             self.showing_huge_objects = False
                             self.showing_large_objects = True
-                            large_objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+                            large_objects = self.object_collection.get_objects_by_size('large')
                             self.current_object_page = (len(large_objects) + self.objects_per_page_large - 1) // self.objects_per_page_large - 1
                         else:
                             self.current_object_page -= 1
@@ -531,7 +534,7 @@ class Editor:
                         # If we're showing large objects and on first page, switch to small objects
                         if self.current_object_page == 0:
                             self.showing_large_objects = False
-                            small_objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+                            small_objects = self.object_collection.get_objects_by_size('small')
                             self.current_object_page = (len(small_objects) + self.objects_per_page - 1) // self.objects_per_page - 1
                         else:
                             self.current_object_page -= 1
@@ -542,26 +545,26 @@ class Editor:
                 
                 # Check if right arrow should be visible and clickable
                 if self.showing_huge_objects:
-                    objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'huge')
+                    objects = self.object_collection.get_objects_by_size('huge')
                     total_pages = (len(objects) + self.objects_per_page_huge - 1) // self.objects_per_page_huge
                     show_right_arrow = self.current_object_page < total_pages - 1
                 elif self.showing_large_objects:
-                    objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+                    objects = self.object_collection.get_objects_by_size('large')
                     total_pages = (len(objects) + self.objects_per_page_large - 1) // self.objects_per_page_large
                     show_right_arrow = self.current_object_page < total_pages - 1 or self.object_collection.get_total_objects('huge') > 0
                 else:
-                    objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+                    objects = self.object_collection.get_objects_by_size('small')
                     total_pages = (len(objects) + self.objects_per_page - 1) // self.objects_per_page
                     show_right_arrow = self.current_object_page < total_pages - 1 or self.object_collection.get_total_objects('large') > 0
                 
                 if show_right_arrow and self.object_next_button_rect.collidepoint(event.pos):
                     if self.showing_huge_objects:
-                        huge_objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'huge')
+                        huge_objects = self.object_collection.get_objects_by_size('huge')
                         total_huge_pages = (len(huge_objects) + self.objects_per_page_huge - 1) // self.objects_per_page_huge
                         if self.current_object_page < total_huge_pages - 1:
                             self.current_object_page += 1
                     elif self.showing_large_objects:
-                        large_objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+                        large_objects = self.object_collection.get_objects_by_size('large')
                         total_large_pages = (len(large_objects) + self.objects_per_page_large - 1) // self.objects_per_page_large
                         if self.current_object_page < total_large_pages - 1:
                             self.current_object_page += 1
@@ -571,7 +574,7 @@ class Editor:
                             self.showing_large_objects = False
                             self.current_object_page = 0
                     else:
-                        small_objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+                        small_objects = self.object_collection.get_objects_by_size('small')
                         total_small_pages = (len(small_objects) + self.objects_per_page - 1) // self.objects_per_page
                         if self.current_object_page < total_small_pages - 1:
                             self.current_object_page += 1
@@ -584,17 +587,17 @@ class Editor:
                 if mouse_x >= self.object_palette_start_x and mouse_x <= self.screen_width - self.object_palette_margin:  # Object palette area
                     # Get objects for current page
                     if self.showing_huge_objects:
-                        objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'huge')
+                        objects = self.object_collection.get_objects_by_size('huge')
                         objects_per_page = self.objects_per_page_huge
                         grid_size = 1
                         obj_size = self.tile_size * 4  # 128x128
                     elif self.showing_large_objects:
-                        objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'large')
+                        objects = self.object_collection.get_objects_by_size('large')
                         objects_per_page = self.objects_per_page_large
                         grid_size = 2
                         obj_size = self.tile_size * 2  # 64x64
                     else:
-                        objects = self.object_collection.get_objects_by_type(self.selected_object_type, 'small')
+                        objects = self.object_collection.get_objects_by_size('small')
                         objects_per_page = self.objects_per_page
                         grid_size = 4
                         obj_size = self.tile_size  # 32x32
@@ -618,6 +621,7 @@ class Editor:
                         
                         if rect.collidepoint(event.pos):
                             self.selected_object = obj
+                            self.selected_object_type = obj['type']  # Set the object type from the selected object
                             self.selected_tile = None  # Deselect tile when selecting an object
                             break
                     
@@ -1208,23 +1212,20 @@ class Editor:
                         self.place_tile(x, y)  # This will handle all the shore tile logic
                         self.selected_tile = old_selected  # Restore original selection
         
-        # Generate random forrests after the map is created
+        # Generate random forests after the map is created
         self.randomize_forrest()
 
     def is_valid_object_position(self, map_x, map_y):
         """Check if an object can be placed at the given position.
         Returns True if the position is valid, False otherwise."""
         if not (0 <= map_x < self.map_width and 0 <= map_y < self.map_height):
-            print("Position out of bounds")
             return False
         
         # Get the object size we're trying to place
         if self.showing_huge_objects:
-            print(f"Checking huge object placement at ({map_x}, {map_y})")
             # For huge objects, check the surrounding tiles
             # Check if we're too close to the map edges
             if map_x == 0 or map_x == self.map_width - 1 or map_y == 0 or map_y == self.map_height - 1:
-                print("Too close to map edges")
                 return False
             
             # Check the main tile and surrounding tiles
@@ -1238,45 +1239,35 @@ class Editor:
             ]
             
             for x, y in tiles_to_check:
-                print(f"Checking tile ({x}, {y})")
                 # Check if tile is within bounds
                 if not (0 <= x < self.map_width and 0 <= y < self.map_height):
-                    print(f"Tile ({x}, {y}) out of bounds")
                     return False
                 
                 # Check if tile is grass (0-3)
                 if self.map[y][x] not in [0, 1, 2, 3]:
-                    print(f"Tile ({x}, {y}) is not grass (tile type: {self.map[y][x]})")
                     return False
                 
                 # Check if there's already an object at this position
                 for obj in self.objects:
                     if obj['x'] == x and obj['y'] == y:
-                        print(f"Object already exists at ({x}, {y})")
                         return False
             
-            print("All checks passed for huge object placement")
             return True
         
         elif self.showing_large_objects:
-            print(f"Checking large object placement at ({map_x}, {map_y})")
             # For large objects, check the main tile and the tile to the right
             if map_x == self.map_width - 1:  # Can't place on last column
-                print("Cannot place on last column")
                 return False
             
             # Check the main tile and the tile to the right
             for x in [map_x, map_x + 1]:
-                print(f"Checking tile ({x}, {map_y})")
                 # Check if tile is grass (0-3)
                 if self.map[map_y][x] not in [0, 1, 2, 3]:
-                    print(f"Tile ({x}, {map_y}) is not grass (tile type: {self.map[map_y][x]})")
                     return False
                 
                 # Check if there's already an object at this position
                 for obj in self.objects:
                     if obj['x'] == x and obj['y'] == map_y:
-                        print(f"Object already exists at ({x}, {map_y})")
                         return False
             
             # Check for huge objects in surrounding tiles
@@ -1291,24 +1282,19 @@ class Editor:
                 if 0 <= x < self.map_width and 0 <= y < self.map_height:
                     for obj in self.objects:
                         if obj['x'] == x and obj['y'] == y and obj['offset'] == 64:  # Huge object
-                            print(f"Huge object found at ({x}, {y})")
                             return False
             
-            print("All checks passed for large object placement")
             return True
         
         else:
-            print(f"Checking small object placement at ({map_x}, {map_y})")
             # For small objects, just check the main tile
             # Check if the tile is grass (0-3)
             if self.map[map_y][map_x] not in [0, 1, 2, 3]:
-                print(f"Tile ({map_x}, {map_y}) is not grass (tile type: {self.map[map_y][map_x]})")
                 return False
             
             # Check if there's already an object at this position
             for obj in self.objects:
                 if obj['x'] == map_x and obj['y'] == map_y:
-                    print(f"Object already exists at ({map_x}, {map_y})")
                     return False
             
             # Check for huge objects in surrounding tiles
@@ -1322,16 +1308,14 @@ class Editor:
                 if 0 <= x < self.map_width and 0 <= y < self.map_height:
                     for obj in self.objects:
                         if obj['x'] == x and obj['y'] == y and obj['offset'] == 64:  # Huge object
-                            print(f"Huge object found at ({x}, {y})")
                             return False
             
-            print("All checks passed for small object placement")
             return True
 
     def randomize_forrest(self):
         """Generate random forrests on the map using a recursive approach"""
         # Get all available large tree objects
-        trees = self.object_collection.get_objects_by_type("Trees", 'large')
+        trees = self.object_collection.get_objects_by_type("tree", 'large')
         if not trees:
             print("No large tree objects available!")
             return
@@ -1356,7 +1340,7 @@ class Editor:
             self.objects.append({
                 'x': x,
                 'y': y,
-                'type': "Trees",
+                'type': "tree",
                 'id': tree['id'],
                 'health': 500,
                 'z_index': 1,
@@ -1378,7 +1362,7 @@ class Editor:
                         if random.random() < 0.02:  # 2% chance for seed
                             place_tree_recursive(x, y)
         
-        print(f"Generated forrest with {len(visited)} trees")
+        print(f"Generated forest with {len(visited)} trees")
 
 # --- Main Execution ---
 if __name__ == "__main__":
