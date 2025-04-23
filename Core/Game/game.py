@@ -293,72 +293,70 @@ class Game:
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
             
-            # Check if minimap is clicked with left mouse button
-            if event.button == 1 and self.is_minimap_clicked(mouse_pos):
-                self.is_dragging_minimap = True
-                self.last_mouse_pos = mouse_pos
-                self.update_camera_from_minimap(mouse_pos)
-            # Check for object selection
-            elif event.button == 1:  # Left click
-                self.selected_object = None  # Clear current selection
-                self.selected_object_image = None  # Clear selected object image
-                mouse_x, mouse_y = mouse_pos
-                
-                # Convert screen coordinates to world coordinates
-                world_x = mouse_x + self.camera_x
-                world_y = mouse_y + self.camera_y
-                
-                # Check each object for selection
-                for obj in self.objects:
-                    obj_world_x = obj['x'] * self.tile_size
-                    obj_world_y = obj['y'] * self.tile_size
-                    obj_width = obj['image'].get_width()
-                    obj_height = obj['image'].get_height()
+            # First check if any panel handle is clicked
+            if event.button == 1:  # Left click
+                if self.vertical_panel.is_handle_clicked(mouse_pos):
+                    if self.vertical_panel_visible:
+                        self.vertical_panel.hide()
+                    else:
+                        self.vertical_panel.show()
+                    self.vertical_panel_visible = not self.vertical_panel_visible
+                elif self.panel.is_handle_clicked(mouse_pos):
+                    if self.panel_visible:
+                        self.panel.hide()
+                    else:
+                        self.panel.show()
+                    self.panel_visible = not self.panel_visible
+                # Then check if minimap is clicked
+                elif self.is_minimap_clicked(mouse_pos):
+                    self.is_dragging_minimap = True
+                    self.last_mouse_pos = mouse_pos
+                    self.update_camera_from_minimap(mouse_pos)
+                # Finally check for object selection
+                else:
+                    self.selected_object = None  # Clear current selection
+                    self.selected_object_image = None  # Clear selected object image
+                    mouse_x, mouse_y = mouse_pos
                     
-                    # Calculate object's screen position
-                    obj_screen_x = obj_world_x - self.camera_x
-                    obj_screen_y = obj_world_y - self.camera_y
+                    # Convert screen coordinates to world coordinates
+                    world_x = mouse_x + self.camera_x
+                    world_y = mouse_y + self.camera_y
                     
-                    # Calculate offset for centering
-                    offset = obj['offset'] - self.tile_size // 2
-                    
-                    # Create a rect for the object
-                    obj_rect = pygame.Rect(
-                        obj_screen_x - offset,
-                        obj_screen_y - offset,
-                        obj_width,
-                        obj_height
-                    )
-                    
-                    # Check if mouse is within the object's rect
-                    if obj_rect.collidepoint(mouse_x, mouse_y):
-                        self.selected_object = obj
-                        # Try to load the object's image from the Images folder
-                        try:
-                            image_path = os.path.join("Images", f"{obj['type']}{obj['id']:05d}.png")
-                            if os.path.exists(image_path):
-                                self.selected_object_image = pygame.image.load(image_path).convert_alpha()
-                            else:
+                    # Check each object for selection
+                    for obj in self.objects:
+                        obj_world_x = obj['x'] * self.tile_size
+                        obj_world_y = obj['y'] * self.tile_size
+                        obj_width = obj['image'].get_width()
+                        obj_height = obj['image'].get_height()
+                        
+                        # Calculate object's screen position
+                        obj_screen_x = obj_world_x - self.camera_x
+                        obj_screen_y = obj_world_y - self.camera_y
+                        
+                        # Calculate offset for centering
+                        offset = obj['offset'] - self.tile_size // 2
+                        
+                        # Create a rect for the object
+                        obj_rect = pygame.Rect(
+                            obj_screen_x - offset,
+                            obj_screen_y - offset,
+                            obj_width,
+                            obj_height
+                        )
+                        
+                        # Check if mouse is within the object's rect
+                        if obj_rect.collidepoint(mouse_x, mouse_y):
+                            self.selected_object = obj
+                            # Try to load the object's image from the Images folder
+                            try:
+                                image_path = os.path.join("Images", f"{obj['type']}{obj['id']:05d}.png")
+                                if os.path.exists(image_path):
+                                    self.selected_object_image = pygame.image.load(image_path).convert_alpha()
+                                else:
+                                    self.selected_object_image = self.default_selection
+                            except:
                                 self.selected_object_image = self.default_selection
-                        except:
-                            self.selected_object_image = self.default_selection
-                        break
-            
-            # Check if vertical panel handle is clicked
-            elif self.vertical_panel.is_handle_clicked(mouse_pos):
-                if self.vertical_panel_visible:
-                    self.vertical_panel.hide()
-                else:
-                    self.vertical_panel.show()
-                self.vertical_panel_visible = not self.vertical_panel_visible
-            
-            # Check if bottom panel handle is clicked
-            elif self.panel.is_handle_clicked(mouse_pos):
-                if self.panel_visible:
-                    self.panel.hide()
-                else:
-                    self.panel.show()
-                self.panel_visible = not self.panel_visible
+                            break
 
         elif event.type == pygame.MOUSEBUTTONUP:
             self.is_dragging_minimap = False
