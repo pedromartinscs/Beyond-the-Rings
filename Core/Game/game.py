@@ -45,6 +45,9 @@ class Game:
         self.life_bar_energy_stretch = pygame.image.load("Images/life_bar_energy_stretch.png").convert_alpha()
         self.life_bar_energy_tip = pygame.image.load("Images/life_bar_energy_tip.png").convert_alpha()
 
+        # Create font for life bar percentage
+        self.life_bar_font = pygame.font.Font(None, 12)  # Reduced font size from 20 to 16
+
         # Load and cache tile images
         self.tile_cache = {}  # Cache for tile images
         self.tiles = []  # List of cached tile surfaces
@@ -227,7 +230,8 @@ class Game:
                                     'health': health,
                                     'z_index': z_index,
                                     'image': obj_image,
-                                    'offset': offset
+                                    'offset': offset,
+                                    'damage': 50
                                 })
                             else:
                                 print(f"Warning: Could not find object image for {obj_type} {obj_id}")
@@ -648,18 +652,36 @@ class Game:
                 self.screen.blit(self.life_bar_left, (life_bar_x, life_bar_y))
                 self.screen.blit(self.life_bar_right, (life_bar_x + 30, life_bar_y))  # 30 pixels from left edge
 
-                # Calculate the width of the energy bar based on health percentage (50% for now)
-                health_percentage = 0.5  # 50%
-                energy_width = int(120 * health_percentage)  # 120 is the width of life_bar_right
+                # Calculate current health percentage based on health and damage
+                if self.selected_object['health'] == -1:
+                    # Indestructible object - always show 100% health
+                    health_percentage = 1.0
+                else:
+                    current_health = max(0, self.selected_object['health'] - self.selected_object['damage'])
+                    health_percentage = current_health / self.selected_object['health']
+
+                energy_width = int(110 * health_percentage)  # 120 is the width of life_bar_right
 
                 # Draw the energy stretch
                 if energy_width > 0:
                     stretched_energy = pygame.transform.scale(self.life_bar_energy_stretch, (energy_width, 30))
                     self.screen.blit(stretched_energy, (life_bar_x + 30, life_bar_y))
 
-                # Draw the energy tip if there's any energy
-                if energy_width > 0:
-                    self.screen.blit(self.life_bar_energy_tip, (life_bar_x + 30 + energy_width, life_bar_y))
+                # Draw the energy tip
+                self.screen.blit(self.life_bar_energy_tip, (life_bar_x + 30 + energy_width, life_bar_y))
+
+                # Render and draw the percentage text
+                percentage_text = f"{int(health_percentage * 100):02d}%"  # Format as two digits with % symbol
+                text_surface = self.life_bar_font.render(percentage_text, True, (255, 255, 255))  # White text
+                text_rect = text_surface.get_rect(center=(life_bar_x + 15, life_bar_y + 15))  # Center in the left round part
+                self.screen.blit(text_surface, text_rect)
+
+                # Check if object should be destroyed (only if not indestructible)
+                if self.selected_object['health'] != -1 and self.selected_object['damage'] >= self.selected_object['health']:
+                    # Remove the object from the list
+                    self.objects.remove(self.selected_object)
+                    self.selected_object = None
+                    self.selected_object_image = None
 
         # Update only the dirty areas of the screen
         if self.dirty_rects:

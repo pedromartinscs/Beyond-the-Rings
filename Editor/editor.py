@@ -683,7 +683,8 @@ class Editor:
                                 'id': self.selected_object['id'],
                                 'health': 500,  # Default health
                                 'z_index': 1,  # Default z-index
-                                'offset': offset
+                                'offset': offset,
+                                'damage': 0  # Initialize damage to 0
                             })
                             print("Object placed successfully")
                         else:
@@ -1178,7 +1179,8 @@ class Editor:
                                     'health': health,
                                     'z_index': z_index,
                                     'image': obj_image,
-                                    'offset': offset
+                                    'offset': offset,
+                                    'damage': 0  # Initialize damage to 0
                                 })
                             else:
                                 print(f"Warning: Could not find object image for {obj_type} {obj_id}")
