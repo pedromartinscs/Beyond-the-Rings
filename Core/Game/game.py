@@ -1,6 +1,7 @@
 import pygame
 import sys
 import os
+import math
 from Core.Game.panel import Panel
 from Core.Game.vertical_panel import VerticalPanel
 from Core.Game.object_collection import ObjectCollection
@@ -22,9 +23,21 @@ class Game:
         # Mouse state tracking
         self.is_dragging_minimap = False
         self.last_mouse_pos = None
+        self.selected_object = None  # Track the currently selected object
 
         # Define the tile size (32x32 pixels)
         self.tile_size = 32
+
+        # Selection ring properties
+        self.selection_ring_color = (255, 255, 0)  # Yellow
+        self.selection_ring_width = 2
+        self.selection_ring_radius = 20  # Base radius for small/large objects
+        self.selection_ring_huge_radius = 40  # Double radius for huge objects
+
+        # Load panel images
+        self.horizontal_left_area = pygame.image.load("Images/game_menu_horizontal_left_area.png").convert_alpha()
+        self.default_selection = pygame.image.load("Images/default_selection.png").convert_alpha()
+        self.selected_object_image = None  # Will store the selected object's image
 
         # Load and cache tile images
         self.tile_cache = {}  # Cache for tile images
@@ -229,6 +242,27 @@ class Game:
                                  self.minimap_size, self.minimap_size)
         return minimap_rect.collidepoint(pos)
 
+    def draw_selection_ring(self, center, radius, color, width):
+        """
+        Draws an elliptical ring around `center`, but split into a back‑half and front‑half
+        so you can render a sprite between them to give depth.
+        """
+        x, y = center
+        # Create a rect with different width and height for the ellipse
+        rect = pygame.Rect(x - radius, y - radius * 0.7, radius * 2, radius * 1.4)
+        
+        # Back half: from 90° to 270° (bottom part of circle)
+        pygame.draw.arc(self.screen, color, rect,
+                        math.pi/2,      # start angle (90°)
+                        3*math.pi/2,    # end angle   (270°)
+                        width)
+        
+        # Front half: from -90° to +90° (top part of circle)
+        pygame.draw.arc(self.screen, color, rect,
+                        -math.pi/2,     # start angle (-90°)
+                        math.pi/2,      # end angle   (+90°)
+                        width)
+
     def handle_events(self, event):
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -258,6 +292,51 @@ class Game:
                 self.is_dragging_minimap = True
                 self.last_mouse_pos = mouse_pos
                 self.update_camera_from_minimap(mouse_pos)
+            # Check for object selection
+            elif event.button == 1:  # Left click
+                self.selected_object = None  # Clear current selection
+                self.selected_object_image = None  # Clear selected object image
+                mouse_x, mouse_y = mouse_pos
+                
+                # Convert screen coordinates to world coordinates
+                world_x = mouse_x + self.camera_x
+                world_y = mouse_y + self.camera_y
+                
+                # Check each object for selection
+                for obj in self.objects:
+                    obj_world_x = obj['x'] * self.tile_size
+                    obj_world_y = obj['y'] * self.tile_size
+                    obj_width = obj['image'].get_width()
+                    obj_height = obj['image'].get_height()
+                    
+                    # Calculate object's screen position
+                    obj_screen_x = obj_world_x - self.camera_x
+                    obj_screen_y = obj_world_y - self.camera_y
+                    
+                    # Calculate offset for centering
+                    offset = obj['offset'] - self.tile_size // 2
+                    
+                    # Create a rect for the object
+                    obj_rect = pygame.Rect(
+                        obj_screen_x - offset,
+                        obj_screen_y - offset,
+                        obj_width,
+                        obj_height
+                    )
+                    
+                    # Check if mouse is within the object's rect
+                    if obj_rect.collidepoint(mouse_x, mouse_y):
+                        self.selected_object = obj
+                        # Try to load the object's image from the Images folder
+                        try:
+                            image_path = os.path.join("Images", f"{obj['type']}{obj['id']:05d}.png")
+                            if os.path.exists(image_path):
+                                self.selected_object_image = pygame.image.load(image_path).convert_alpha()
+                            else:
+                                self.selected_object_image = self.default_selection
+                        except:
+                            self.selected_object_image = self.default_selection
+                        break
             
             # Check if vertical panel handle is clicked
             elif self.vertical_panel.is_handle_clicked(mouse_pos):
@@ -470,7 +549,7 @@ class Game:
         # Blit the visible portion of the pre-rendered map
         self.screen.blit(self.map_surface, dest_rect, source_rect)
 
-        # Render visible objects
+        # First pass: Draw all non-selected objects and back parts of selection rings
         for obj_data in self.visible_objects_cache:
             obj = obj_data['obj']
             screen_x = obj_data['screen_x']
@@ -484,8 +563,37 @@ class Game:
             obj_rect = pygame.Rect(screen_x, screen_y, obj_width, obj_height)
             self.dirty_rects.append(obj_rect)
             
+            # Draw selection ring behind the object if it's selected
+            if self.selected_object == obj:
+                # Determine ring radius based on object size
+                ring_radius = self.selection_ring_huge_radius if obj_width == 128 else self.selection_ring_radius
+                
+                # Draw back half of selection ring
+                x, y = screen_x + obj_width // 2, screen_y + obj_height // 2
+                rect = pygame.Rect(x - ring_radius, y - ring_radius * 0.7, ring_radius * 2, ring_radius * 1.4)
+                pygame.draw.arc(self.screen, self.selection_ring_color, rect,
+                              math.pi/2, 3*math.pi/2, self.selection_ring_width)
+            
             # Render the object
             self.screen.blit(obj['image'], (screen_x, screen_y))
+        
+        # Second pass: Draw front parts of selection rings for selected objects
+        for obj_data in self.visible_objects_cache:
+            obj = obj_data['obj']
+            if self.selected_object == obj:
+                screen_x = obj_data['screen_x']
+                screen_y = obj_data['screen_y']
+                obj_width = obj['image'].get_width()
+                obj_height = obj['image'].get_height()
+                
+                # Determine ring radius based on object size
+                ring_radius = self.selection_ring_huge_radius if obj_width == 128 else self.selection_ring_radius
+                
+                # Draw front half of selection ring
+                x, y = screen_x + obj_width // 2, screen_y + obj_height // 2
+                rect = pygame.Rect(x - ring_radius, y - ring_radius * 0.7, ring_radius * 2, ring_radius * 1.4)
+                pygame.draw.arc(self.screen, self.selection_ring_color, rect,
+                              -math.pi/2, math.pi/2, self.selection_ring_width)
 
         # Render the minimap
         self.update_minimap()
@@ -497,6 +605,34 @@ class Game:
         # Render the panels
         self.vertical_panel.render()
         self.panel.render()
+
+        # Render selected object image in the horizontal panel's left area
+        if self.panel_visible or self.panel.current_y < self.screen_height - self.panel.handle_height:
+            # Get the left area position from the panel
+            left_area_rect = self.panel.get_left_area_rect()
+            
+            # Adjust the y position based on the panel's current position
+            left_area_rect.y = self.panel.current_y + self.panel.margin + 5
+            
+            # Draw the selected object image or default image
+            if self.selected_object_image:
+                # Scale the image to fit the left area while maintaining aspect ratio
+                img_width, img_height = self.selected_object_image.get_size()
+                scale = min(left_area_rect.width / img_width, left_area_rect.height / img_height)
+                new_width = int(img_width * scale)
+                new_height = int(img_height * scale)
+                scaled_image = pygame.transform.scale(self.selected_object_image, (new_width, new_height))
+                
+                # Center the image in the left area
+                x = left_area_rect.x + (left_area_rect.width - new_width) // 2
+                y = left_area_rect.y + (left_area_rect.height - new_height) // 2
+                self.screen.blit(scaled_image, (x, y))
+            else:
+                # Draw the default selection image
+                self.screen.blit(self.default_selection, left_area_rect)
+            
+            # Draw the left area border on top
+            self.screen.blit(self.horizontal_left_area, left_area_rect)
 
         # Update only the dirty areas of the screen
         if self.dirty_rects:

@@ -38,7 +38,7 @@ class Panel:
         self.middle_area_width = self.width - (self.left_area_size + self.right_area_width + (self.margin * 4))
 
         # Create surfaces for each area
-        self.left_area = pygame.image.load(os.path.join('Images', 'game_menu_vertical_left_area.png'))
+        self.left_area = pygame.image.load(os.path.join('Images', 'game_menu_horizontal_left_area.png'))
         self.left_area = pygame.transform.scale(self.left_area, (self.left_area_size, self.area_height))
         self.middle_area = pygame.Surface((self.middle_area_width, self.area_height), pygame.SRCALPHA)  # Make transparent
         self.right_area = pygame.Surface((self.right_area_width, self.area_height))
@@ -468,3 +468,12 @@ class Panel:
         if self.current_tooltip:
             tooltip_surface, tooltip_pos = self.current_tooltip
             self.screen.blit(tooltip_surface, tooltip_pos)
+
+    def get_left_area_rect(self):
+        """Returns the rectangle for the left area of the panel."""
+        return pygame.Rect(
+            self.screen.get_width() - self.width + self.margin,
+            self.screen.get_height() - self.height + self.margin,
+            self.left_area_size,
+            self.area_height
+        )
