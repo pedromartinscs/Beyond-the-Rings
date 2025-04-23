@@ -192,7 +192,7 @@ class Game:
                         else:
                             i += 1
                     
-                    if len(obj_data) != 6:
+                    if len(obj_data) != 7:
                         continue
                     
                     try:
@@ -202,6 +202,7 @@ class Game:
                         obj_id = int(obj_data[3])
                         health = int(obj_data[4])
                         z_index = int(obj_data[5])
+                        damage = int(obj_data[6])
                         
                         if 0 <= x < width and 0 <= y < height:
                             # Try to get the object in all sizes
@@ -231,7 +232,7 @@ class Game:
                                     'z_index': z_index,
                                     'image': obj_image,
                                     'offset': offset,
-                                    'damage': 50
+                                    'damage': damage
                                 })
                             else:
                                 print(f"Warning: Could not find object image for {obj_type} {obj_id}")

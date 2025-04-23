@@ -9,6 +9,7 @@ from tkinter import filedialog
 import random
 from Core.Game.object_collection import ObjectCollection
 import tkinter.messagebox as messagebox
+import json
 
 # Main class for the map editor
 class Editor:
@@ -206,6 +207,9 @@ class Editor:
             button_width,
             button_height
         )
+        
+        # Add JSON loading method
+        self.object_jsons = {}  # Cache for loaded JSONs
     
     # --- Rendering ---
     def render(self):
@@ -611,13 +615,12 @@ class Editor:
                         obj = objects[i]
                         row = (i - start_idx) // grid_size
                         col = (i - start_idx) % grid_size
-                        
                         rect = pygame.Rect(
-                            self.object_palette_start_x + (col * (obj_size + self.object_grid_padding)),
-                            self.object_palette_start_y + (row * (obj_size + self.object_grid_padding)),
-                            obj_size,
-                            obj_size
-                        )
+                                self.object_palette_start_x + (col * (obj_size + self.object_grid_padding)),
+                                self.object_palette_start_y + (row * (obj_size + self.object_grid_padding)),
+                                obj_size,
+                                obj_size
+                                )
                         
                         if rect.collidepoint(event.pos):
                             self.selected_object = obj
@@ -675,16 +678,25 @@ class Editor:
                             else:
                                 offset = 16  # Small object (32x32)
                             
+                            # Load JSON data for the object
+                            json_data = self.load_object_json(self.selected_object_type, self.selected_object['id'])
+                            
+                            # Get properties from JSON or use defaults
+                            properties = json_data.get('properties', {}) if json_data else {}
+                            health = properties.get('health', 500)  # Default health if not specified
+                            z_index = properties.get('z_index', 1)  # Default z-index if not specified
+                            damage = properties.get('damage', 0)    # Default damage to 0 if not specified
+                            
                             # Add the object to the map
                             self.objects.append({
                                 'x': map_x,
                                 'y': map_y,
                                 'type': self.selected_object_type,
                                 'id': self.selected_object['id'],
-                                'health': 500,  # Default health
-                                'z_index': 1,  # Default z-index
+                                'health': health,
+                                'z_index': z_index,
                                 'offset': offset,
-                                'damage': 0  # Initialize damage to 0
+                                'damage': damage  # Use damage from JSON or default to 0
                             })
                             print("Object placed successfully")
                         else:
@@ -1059,10 +1071,10 @@ class Editor:
                         f.write(line + '\n')
                     
                     # Write objects section
-                    f.write("#Objects: on format [x][y][type][id][health][z-index]\n")
+                    f.write("#Objects: on format [x][y][type][id][health][z-index][damage]\n")
                     for obj in self.objects:
-                        f.write(f"[{obj['x']}][{obj['y']}][{obj['type']}][{obj['id']}][{obj['health']}][{obj['z_index']}]\n")
-                
+                        f.write(f"[{obj['x']}][{obj['y']}][{obj['type']}][{obj['id']}][{obj['health']}][{obj['z_index']}][{obj['damage']}]\n")
+                        
                 print(f"Map saved successfully to {file_path}")
             except Exception as e:
                 print(f"Error saving map: {e}")
@@ -1126,7 +1138,7 @@ class Editor:
                 # Read objects (if any)
                 self.objects = []
                 for line in lines[height + 1:]:
-                    # Extract object data from [x][y][type][id][health][z-index] format
+                    # Extract object data from [x][y][type][id][health][z-index][damage] format
                     obj_data = []
                     i = 0
                     while i < len(line):
@@ -1141,7 +1153,8 @@ class Editor:
                         else:
                             i += 1
                     
-                    if len(obj_data) != 6:
+                    # Handle both old (6 values) and new (7 values) formats
+                    if len(obj_data) < 6:  # Skip if we don't have at least the basic required values
                         continue
                     
                     try:
@@ -1151,6 +1164,7 @@ class Editor:
                         obj_id = int(obj_data[3])
                         health = int(obj_data[4])
                         z_index = int(obj_data[5])
+                        damage = int(obj_data[6]) if len(obj_data) > 6 else 0  # Default to 0 if damage not present
                         
                         if 0 <= x < width and 0 <= y < height:
                             # Try to get the object in all sizes
@@ -1171,6 +1185,15 @@ class Editor:
                                     obj_image = self.object_collection.get_object(obj_type, obj_id, 'small')
                             
                             if obj_image:
+                                # Load JSON data for the object
+                                json_data = self.load_object_json(obj_type, obj_id)
+                                
+                                # Get properties from JSON or use loaded values
+                                properties = json_data.get('properties', {}) if json_data else {}
+                                health = properties.get('health', health)  # Use JSON health or loaded value
+                                z_index = properties.get('z_index', z_index)  # Use JSON z-index or loaded value
+                                damage = properties.get('damage', damage)  # Use JSON damage or loaded value
+                                
                                 self.objects.append({
                                     'x': x,
                                     'y': y,
@@ -1180,7 +1203,7 @@ class Editor:
                                     'z_index': z_index,
                                     'image': obj_image,
                                     'offset': offset,
-                                    'damage': 0  # Initialize damage to 0
+                                    'damage': damage
                                 })
                             else:
                                 print(f"Warning: Could not find object image for {obj_type} {obj_id}")
@@ -1337,15 +1360,15 @@ class Editor:
         
         else:
             # For small objects, just check the main tile
-            # Check if the tile is grass (0-3)
+        # Check if the tile is grass (0-3)
             if self.map[map_y][map_x] not in [0, 1, 2, 3]:
                 return False
-            
-            # Check if there's already an object at this position
-            for obj in self.objects:
-                if obj['x'] == map_x and obj['y'] == map_y:
-                    return False
-            
+        
+        # Check if there's already an object at this position
+        for obj in self.objects:
+            if obj['x'] == map_x and obj['y'] == map_y:
+                return False
+        
             # Check for huge objects in surrounding tiles
             surrounding_tiles = [
                 (map_x - 1, map_y),     # Left
@@ -1412,6 +1435,35 @@ class Editor:
                             place_tree_recursive(x, y)
         
         print(f"Generated forest with {len(visited)} trees")
+
+    def load_object_json(self, obj_type, obj_id):
+        """Load JSON data for an object, falling back to default.json if needed"""
+        # Check if we already have this JSON cached
+        cache_key = f"{obj_type}_{obj_id}"
+        if cache_key in self.object_jsons:
+            return self.object_jsons[cache_key]
+            
+        type_path = os.path.join("Maps", "Common", "Objects", obj_type)
+        object_json_path = os.path.join(type_path, f"{obj_type}{obj_id:05d}.json")
+        default_json_path = os.path.join(type_path, "default.json")
+        
+        try:
+            # Try to load object-specific JSON
+            if os.path.exists(object_json_path):
+                with open(object_json_path, 'r') as f:
+                    json_data = json.load(f)
+            # Fall back to default.json
+            else:
+                with open(default_json_path, 'r') as f:
+                    json_data = json.load(f)
+            
+            # Cache the JSON data
+            self.object_jsons[cache_key] = json_data
+            return json_data
+            
+        except Exception as e:
+            print(f"Error loading JSON for {obj_type} {obj_id}: {e}")
+            return None
 
 # --- Main Execution ---
 if __name__ == "__main__":
