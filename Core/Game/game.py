@@ -39,6 +39,12 @@ class Game:
         self.default_selection = pygame.image.load("Images/default_selection.png").convert_alpha()
         self.selected_object_image = None  # Will store the selected object's image
 
+        # Load life bar images
+        self.life_bar_left = pygame.image.load("Images/life_bar_left.png").convert_alpha()
+        self.life_bar_right = pygame.image.load("Images/life_bar_right.png").convert_alpha()
+        self.life_bar_energy_stretch = pygame.image.load("Images/life_bar_energy_stretch.png").convert_alpha()
+        self.life_bar_energy_tip = pygame.image.load("Images/life_bar_energy_tip.png").convert_alpha()
+
         # Load and cache tile images
         self.tile_cache = {}  # Cache for tile images
         self.tiles = []  # List of cached tile surfaces
@@ -612,7 +618,7 @@ class Game:
             left_area_rect = self.panel.get_left_area_rect()
             
             # Adjust the y position based on the panel's current position
-            left_area_rect.y = self.panel.current_y + self.panel.margin + 5
+            left_area_rect.y = self.panel.current_y + self.panel.margin - 5  # Reduced by 10 pixels (from +5 to -5)
             
             # Draw the selected object image or default image
             if self.selected_object_image:
@@ -633,6 +639,29 @@ class Game:
             
             # Draw the left area border on top
             self.screen.blit(self.horizontal_left_area, left_area_rect)
+
+            # Draw life bar if an object is selected
+            if self.selected_object:
+                # Calculate life bar position (below the left area)
+                life_bar_y = left_area_rect.y + left_area_rect.height  # At the bottom of the left area
+                life_bar_x = left_area_rect.x
+
+                # Draw the empty life bar structure
+                self.screen.blit(self.life_bar_left, (life_bar_x, life_bar_y))
+                self.screen.blit(self.life_bar_right, (life_bar_x + 30, life_bar_y))  # 30 pixels from left edge
+
+                # Calculate the width of the energy bar based on health percentage (50% for now)
+                health_percentage = 0.5  # 50%
+                energy_width = int(120 * health_percentage)  # 120 is the width of life_bar_right
+
+                # Draw the energy stretch
+                if energy_width > 0:
+                    stretched_energy = pygame.transform.scale(self.life_bar_energy_stretch, (energy_width, 30))
+                    self.screen.blit(stretched_energy, (life_bar_x + 30, life_bar_y))
+
+                # Draw the energy tip if there's any energy
+                if energy_width > 0:
+                    self.screen.blit(self.life_bar_energy_tip, (life_bar_x + 30 + energy_width, life_bar_y))
 
         # Update only the dirty areas of the screen
         if self.dirty_rects:

@@ -45,7 +45,7 @@ class Panel:
         self.right_area.fill((0, 0, 0))  # Black for now
 
         # Calculate area positions
-        self.left_area_pos = (self.margin, self.margin + 5)
+        self.left_area_pos = (self.margin, self.margin - 5)  # Reduced by 10 pixels (from +5 to -5)
         self.middle_area_pos = (self.left_area_pos[0] + self.left_area_size + self.margin, self.margin + 5)
         self.right_area_pos = (self.width - self.right_area_width - self.margin, self.margin + 5)
 
