@@ -1,5 +1,6 @@
 import os
 import pygame
+import json
 
 class ObjectCollection:
     def __init__(self):
@@ -7,7 +8,48 @@ class ObjectCollection:
         self.small_objects = {}  # Dictionary for 32x32 objects
         self.large_objects = {}  # Dictionary for 64x64 objects
         self.huge_objects = {}   # Dictionary for 128x128 objects
+        self.object_metadata = {}  # Cache for object metadata (name, description)
         self.load_objects()
+
+    def load_object_metadata(self, obj_type, obj_id):
+        """Load and cache object metadata from JSON file"""
+        # Create a unique key for this object type and ID
+        cache_key = f"{obj_type}_{obj_id}"
+        
+        # Return cached metadata if available
+        if cache_key in self.object_metadata:
+            return self.object_metadata[cache_key]
+        
+        # Try to load metadata from JSON file
+        try:
+            json_path = os.path.join("Maps", "Common", "Objects", obj_type, f"{obj_type}{obj_id:05d}.json")
+            if os.path.exists(json_path):
+                with open(json_path, 'r') as f:
+                    data = json.load(f)
+                    metadata = {
+                        'name': data.get('name', f"{obj_type.capitalize()} {obj_id}"),
+                        'description': data.get('description', '')
+                    }
+                    # Cache the metadata
+                    self.object_metadata[cache_key] = metadata
+                    return metadata
+        except Exception as e:
+            print(f"Error loading metadata for {obj_type} {obj_id}: {e}")
+        
+        # Return default metadata if JSON file doesn't exist or has an error
+        default_metadata = {
+            'name': f"{obj_type.capitalize()} {obj_id}",
+            'description': ''
+        }
+        self.object_metadata[cache_key] = default_metadata
+        return default_metadata
+
+    def get_object_metadata(self, obj_type, obj_id):
+        """Get cached metadata for an object"""
+        cache_key = f"{obj_type}_{obj_id}"
+        if cache_key not in self.object_metadata:
+            return self.load_object_metadata(obj_type, obj_id)
+        return self.object_metadata[cache_key]
 
     def load_objects(self):
         # Define the base path for objects using os.path.join for consistent separators
@@ -54,6 +96,9 @@ class ObjectCollection:
                                 image_path = os.path.join(type_path, filename)
                                 image = pygame.image.load(image_path).convert_alpha()
                                 
+                                # Load object metadata
+                                metadata = self.load_object_metadata(obj_type, number)
+                                
                                 # Determine object size based on image dimensions
                                 width, height = image.get_size()
                                 if width == 128 and height == 128:
@@ -76,7 +121,9 @@ class ObjectCollection:
                                     'image': image,
                                     'type': obj_type,
                                     'filename': filename,
-                                    'size': size
+                                    'size': size,
+                                    'name': metadata['name'],
+                                    'description': metadata['description']
                                 })
                         except ValueError as e:
                             print(f"Error parsing filename {filename}: {e}")

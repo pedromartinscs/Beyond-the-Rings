@@ -1194,6 +1194,10 @@ class Editor:
                                 z_index = properties.get('z_index', z_index)  # Use JSON z-index or loaded value
                                 damage = properties.get('damage', damage)  # Use JSON damage or loaded value
                                 
+                                # Get object metadata
+                                metadata = self.object_collection.get_object_metadata(obj_type, obj_id)
+                                
+                                # Add the object to the list
                                 self.objects.append({
                                     'x': x,
                                     'y': y,
@@ -1203,7 +1207,8 @@ class Editor:
                                     'z_index': z_index,
                                     'image': obj_image,
                                     'offset': offset,
-                                    'damage': damage
+                                    'damage': damage,
+                                    'name': metadata['name']
                                 })
                             else:
                                 print(f"Warning: Could not find object image for {obj_type} {obj_id}")

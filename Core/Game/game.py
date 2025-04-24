@@ -39,15 +39,6 @@ class Game:
         self.default_selection = pygame.image.load("Images/default_selection.png").convert_alpha()
         self.selected_object_image = None  # Will store the selected object's image
 
-        # Load life bar images
-        self.life_bar_left = pygame.image.load("Images/life_bar_left.png").convert_alpha()
-        self.life_bar_right = pygame.image.load("Images/life_bar_right.png").convert_alpha()
-        self.life_bar_energy_stretch = pygame.image.load("Images/life_bar_energy_stretch.png").convert_alpha()
-        self.life_bar_energy_tip = pygame.image.load("Images/life_bar_energy_tip.png").convert_alpha()
-
-        # Create font for life bar percentage
-        self.life_bar_font = pygame.font.Font(None, 12)  # Reduced font size from 20 to 16
-
         # Load and cache tile images
         self.tile_cache = {}  # Cache for tile images
         self.tiles = []  # List of cached tile surfaces
@@ -223,6 +214,9 @@ class Game:
                                     obj_image = self.object_collection.get_object(obj_type, obj_id, 'small')
                             
                             if obj_image:
+                                # Get object metadata
+                                metadata = self.object_collection.get_object_metadata(obj_type, obj_id)
+                                
                                 self.objects.append({
                                     'x': x,
                                     'y': y,
@@ -232,7 +226,8 @@ class Game:
                                     'z_index': z_index,
                                     'image': obj_image,
                                     'offset': offset,
-                                    'damage': damage
+                                    'damage': damage,
+                                    'name': metadata['name']
                                 })
                             else:
                                 print(f"Warning: Could not find object image for {obj_type} {obj_id}")
@@ -364,7 +359,7 @@ class Game:
                                 self.selected_object_image = self.default_selection
                             
                             # Set the object name in the panel
-                            self.panel.set_object_name(f"{obj['type'].capitalize()} {obj['id']}")
+                            self.panel.set_object_name(obj['name'])
                             break
 
         elif event.type == pygame.MOUSEBUTTONUP:
@@ -650,43 +645,10 @@ class Game:
             # Render panel text after drawing the selected object
             self.panel.render_text()
 
-            # Draw life bar if an object is selected
+            # Render life bar and check if object should be destroyed
             if self.selected_object:
-                # Calculate life bar position (below the left area)
-                life_bar_y = left_area_rect.y + left_area_rect.height  # At the bottom of the left area
-                life_bar_x = left_area_rect.x
-
-                # Draw the empty life bar structure
-                self.screen.blit(self.life_bar_left, (life_bar_x, life_bar_y))
-                self.screen.blit(self.life_bar_right, (life_bar_x + 30, life_bar_y))  # 30 pixels from left edge
-
-                # Calculate current health percentage based on health and damage
-                if self.selected_object['health'] == -1:
-                    # Indestructible object - always show 100% health
-                    health_percentage = 1.0
-                else:
-                    current_health = max(0, self.selected_object['health'] - self.selected_object['damage'])
-                    health_percentage = current_health / self.selected_object['health']
-
-                energy_width = int(110 * health_percentage)  # 120 is the width of life_bar_right
-
-                # Draw the energy stretch
-                if energy_width > 0:
-                    stretched_energy = pygame.transform.scale(self.life_bar_energy_stretch, (energy_width, 30))
-                    self.screen.blit(stretched_energy, (life_bar_x + 30, life_bar_y))
-
-                # Draw the energy tip
-                self.screen.blit(self.life_bar_energy_tip, (life_bar_x + 30 + energy_width, life_bar_y))
-
-                # Render and draw the percentage text
-                percentage_text = f"{int(health_percentage * 100):02d}%"  # Format as two digits with % symbol
-                text_surface = self.life_bar_font.render(percentage_text, True, (255, 255, 255))  # White text
-                text_rect = text_surface.get_rect(center=(life_bar_x + 15, life_bar_y + 15))  # Center in the left round part
-                self.screen.blit(text_surface, text_rect)
-
-                # Check if object should be destroyed (only if not indestructible)
-                if self.selected_object['health'] != -1 and self.selected_object['damage'] >= self.selected_object['health']:
-                    # Remove the object from the list
+                if self.panel.render_life_bar(self.selected_object, left_area_rect):
+                    # Object should be destroyed
                     self.objects.remove(self.selected_object)
                     self.selected_object = None
                     self.selected_object_image = None

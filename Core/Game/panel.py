@@ -15,6 +15,15 @@ class Panel:
         self.cap_width = 60  # Width of the left and right caps
         self.arrow_width = 20  # Width of the arrow section
 
+        # Load life bar images
+        self.life_bar_left = pygame.image.load("Images/life_bar_left.png").convert_alpha()
+        self.life_bar_right = pygame.image.load("Images/life_bar_right.png").convert_alpha()
+        self.life_bar_energy_stretch = pygame.image.load("Images/life_bar_energy_stretch.png").convert_alpha()
+        self.life_bar_energy_tip = pygame.image.load("Images/life_bar_energy_tip.png").convert_alpha()
+
+        # Create font for life bar percentage
+        self.life_bar_font = pygame.font.Font(None, 12)  # Small font size for percentage
+
         # Add tooltip timer properties
         self.tooltip_timer = 0  # Timer for tooltip delay
         self.tooltip_delay = 1500  # 2 seconds in milliseconds
@@ -30,7 +39,7 @@ class Panel:
 
         # Add object name text properties
         self.object_name_font = pygame.font.Font(None, 20)  # Font for object name
-        self.object_name_color = (255, 255, 255)  # White color for object name
+        self.object_name_color = (200, 200, 200)  # Light gray color to match hint text
         self.object_name_text = "No selection"  # Default text
         self.object_name_surface = self.object_name_font.render(self.object_name_text, True, self.object_name_color)
 
@@ -362,7 +371,7 @@ class Panel:
         if self.visible or self.current_y < self.screen.get_height() - self.handle_height:
             # Draw object name in the bottom 25 pixels of the left area
             name_x = self.left_area_pos[0] + (self.left_area_size - self.object_name_surface.get_width()) // 2
-            name_y = self.current_y + self.left_area_pos[1] + self.area_height - 25  # Bottom 25 pixels
+            name_y = self.current_y + self.left_area_pos[1] + self.area_height - 25 + (25 - self.object_name_surface.get_height()) // 2  # Center in bottom 25px
             self.screen.blit(self.object_name_surface, (name_x, name_y))
 
     def render(self):
@@ -498,3 +507,43 @@ class Panel:
             self.left_area_size,
             self.area_height
         )
+
+    def render_life_bar(self, selected_object, left_area_rect):
+        """Render the life bar for the selected object"""
+        if not selected_object:
+            return False
+
+        # Calculate life bar position (below the left area)
+        life_bar_y = left_area_rect.y + left_area_rect.height  # At the bottom of the left area
+        life_bar_x = left_area_rect.x
+
+        # Draw the empty life bar structure
+        self.screen.blit(self.life_bar_left, (life_bar_x, life_bar_y))
+        self.screen.blit(self.life_bar_right, (life_bar_x + 30, life_bar_y))  # 30 pixels from left edge
+
+        # Calculate current health percentage based on health and damage
+        if selected_object['health'] == -1:
+            # Indestructible object - always show 100% health
+            health_percentage = 1.0
+        else:
+            current_health = max(0, selected_object['health'] - selected_object['damage'])
+            health_percentage = current_health / selected_object['health']
+
+        energy_width = int(110 * health_percentage)  # 120 is the width of life_bar_right
+
+        # Draw the energy stretch
+        if energy_width > 0:
+            stretched_energy = pygame.transform.scale(self.life_bar_energy_stretch, (energy_width, 30))
+            self.screen.blit(stretched_energy, (life_bar_x + 30, life_bar_y))
+
+        # Draw the energy tip
+        self.screen.blit(self.life_bar_energy_tip, (life_bar_x + 30 + energy_width, life_bar_y))
+
+        # Render and draw the percentage text
+        percentage_text = f"{int(health_percentage * 100):02d}%"  # Format as two digits with % symbol
+        text_surface = self.life_bar_font.render(percentage_text, True, (255, 255, 255))  # White text
+        text_rect = text_surface.get_rect(center=(life_bar_x + 15, life_bar_y + 15))  # Center in the left round part
+        self.screen.blit(text_surface, text_rect)
+
+        # Return True if object should be destroyed
+        return selected_object['health'] != -1 and selected_object['damage'] >= selected_object['health']
