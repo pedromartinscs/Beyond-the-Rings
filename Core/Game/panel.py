@@ -28,6 +28,12 @@ class Panel:
         self.hint_x = (self.width - self.hint_surface.get_width()) // 2
         self.hint_y = 5  # Small padding from top
 
+        # Add object name text properties
+        self.object_name_font = pygame.font.Font(None, 20)  # Font for object name
+        self.object_name_color = (255, 255, 255)  # White color for object name
+        self.object_name_text = "No selection"  # Default text
+        self.object_name_surface = self.object_name_font.render(self.object_name_text, True, self.object_name_color)
+
         # Define areas dimensions and margins
         self.margin = 20  # Margin between areas and edges
         self.left_area_size = 150  # Square area for unit/building display
@@ -346,6 +352,19 @@ class Panel:
         
         return (tooltip_surface, (tooltip_x, tooltip_y))
 
+    def set_object_name(self, name):
+        """Update the object name text"""
+        self.object_name_text = name if name else "No selection"
+        self.object_name_surface = self.object_name_font.render(self.object_name_text, True, self.object_name_color)
+
+    def render_text(self):
+        """Render just the text part of the panel"""
+        if self.visible or self.current_y < self.screen.get_height() - self.handle_height:
+            # Draw object name in the bottom 25 pixels of the left area
+            name_x = self.left_area_pos[0] + (self.left_area_size - self.object_name_surface.get_width()) // 2
+            name_y = self.current_y + self.left_area_pos[1] + self.area_height - 25  # Bottom 25 pixels
+            self.screen.blit(self.object_name_surface, (name_x, name_y))
+
     def render(self):
         # Calculate target positions
         if self.visible:
@@ -367,6 +386,8 @@ class Panel:
             
             # Draw the three areas
             panel_y = self.current_y
+            
+            # Draw the left area background
             self.screen.blit(self.left_area, (self.left_area_pos[0], panel_y + self.left_area_pos[1]))
             
             # Draw middle area and its buttons

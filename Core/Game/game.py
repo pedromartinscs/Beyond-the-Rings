@@ -321,6 +321,7 @@ class Game:
                 else:
                     self.selected_object = None  # Clear current selection
                     self.selected_object_image = None  # Clear selected object image
+                    self.panel.set_object_name("No selection")  # Reset object name
                     mouse_x, mouse_y = mouse_pos
                     
                     # Convert screen coordinates to world coordinates
@@ -361,6 +362,9 @@ class Game:
                                     self.selected_object_image = self.default_selection
                             except:
                                 self.selected_object_image = self.default_selection
+                            
+                            # Set the object name in the panel
+                            self.panel.set_object_name(f"{obj['type'].capitalize()} {obj['id']}")
                             break
 
         elif event.type == pygame.MOUSEBUTTONUP:
@@ -642,6 +646,9 @@ class Game:
             
             # Draw the left area border on top
             self.screen.blit(self.horizontal_left_area, left_area_rect)
+
+            # Render panel text after drawing the selected object
+            self.panel.render_text()
 
             # Draw life bar if an object is selected
             if self.selected_object:
