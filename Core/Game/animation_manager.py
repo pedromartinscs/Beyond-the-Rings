@@ -46,6 +46,7 @@ class AnimationManager:
                 frame = pygame.image.load(frame_path).convert_alpha()
                 self.animations[cache_key] = [frame]
                 return self.animations[cache_key]
+            return None
         else:
             # For other animations (movement, fire, destruction), we need all frames
             anim_path = os.path.join(base_path, animation_type, str(direction))
@@ -62,8 +63,7 @@ class AnimationManager:
                 if frames:
                     self.animations[cache_key] = frames
                     return self.animations[cache_key]
-
-        return None
+            return None
 
     def set_animation_state(self, object_id, state):
         """Set the current animation state for an object"""
@@ -79,7 +79,8 @@ class AnimationManager:
         if current_state in ["fire", "destruction"]:
             animation_type = current_state
 
-        cache_key = f"{object_id}_{animation_type}_{direction}"
+        # Use the same cache key format as load_animation
+        cache_key = f"building{object_id}_{animation_type}_{direction}"
         
         # Initialize tracking for this object if not exists
         if object_id not in self.current_frames:
@@ -89,7 +90,10 @@ class AnimationManager:
         # Get the animation frames
         frames = self.animations.get(cache_key)
         if not frames:
-            return None
+            # Try to load the animation if it's not in cache
+            frames = self.load_animation("building", object_id, animation_type, direction)
+            if not frames:
+                return None
 
         # If it's a static animation or no animation speed, return the first frame
         if animation_type == "static" or animation_speed == 0:

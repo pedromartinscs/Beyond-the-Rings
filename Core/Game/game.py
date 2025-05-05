@@ -573,11 +573,33 @@ class Game:
             screen_x = obj_data['screen_x']
             screen_y = obj_data['screen_y']
             
+            # Calculate object's world position in pixels
+            obj_world_x = obj['x'] * self.tile_size
+            obj_world_y = obj['y'] * self.tile_size
+            
+            # For turrets (building00003), use default direction unless selected
+            current_direction = 0
+            if obj['type'] == 'building' and obj['id'] == 3:  # Defense Tower
+                # Only calculate direction if the turret is selected
+                if self.selected_object == obj:
+                    # Get mouse position for turret targeting
+                    mouse_x, mouse_y = pygame.mouse.get_pos()
+                    mouse_world_x = mouse_x + self.camera_x
+                    mouse_world_y = mouse_y + self.camera_y
+                    
+                    # Get object metadata to check if it has directions
+                    metadata = self.animation_manager.load_object_metadata(obj['type'], obj['id'])
+                    if metadata and 'visuals' in metadata and 'directions' in metadata['visuals']:
+                        # Calculate angle to mouse
+                        angle = self.calculate_angle(obj_world_x, obj_world_y, mouse_world_x, mouse_world_y)
+                        # Get nearest available direction
+                        current_direction = self.get_nearest_direction(angle, metadata['visuals']['directions'])
+            
             # Get current animation frame
             current_frame = self.animation_manager.get_current_frame(
                 obj['id'],
                 "static",
-                0,
+                current_direction,
                 obj['animation_speed']
             )
             
@@ -728,3 +750,20 @@ class Game:
             self.camera_height * self.minimap_scale
         )
         pygame.draw.rect(self.minimap_surface, (255, 255, 255), viewport_rect, 2)
+
+    def calculate_angle(self, start_x, start_y, target_x, target_y):
+        """Calculate the angle between two points in degrees"""
+        dx = target_x - start_x
+        dy = target_y - start_y
+        # Convert to degrees and adjust for pygame's coordinate system
+        # Add 90 degrees to rotate the coordinate system so 0 points down
+        angle = math.degrees(math.atan2(-dy, dx)) + 90
+        # Normalize to 0-359
+        angle = (angle + 360) % 360
+        return angle
+
+    def get_nearest_direction(self, angle, directions):
+        """Get the nearest direction from the available directions"""
+        # Find the closest direction by comparing the absolute difference
+        closest = min(directions, key=lambda x: min(abs(x - angle), 360 - abs(x - angle)))
+        return closest
