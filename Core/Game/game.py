@@ -2,9 +2,11 @@ import pygame
 import sys
 import os
 import math
+import json
 from Core.Game.panel import Panel
 from Core.Game.vertical_panel import VerticalPanel
 from Core.Game.object_collection import ObjectCollection
+from Core.Game.animation_manager import AnimationManager
 
 class Game:
     def __init__(self, screen):
@@ -19,6 +21,9 @@ class Game:
         self.music_file = "Music/__bertsz__cyberpunk_MULTI.mp3"
         pygame.mixer.music.load(self.music_file)
         pygame.mixer.music.play(-1)  # Play in an infinite loop
+
+        # Initialize animation manager
+        self.animation_manager = AnimationManager()
 
         # Mouse state tracking
         self.is_dragging_minimap = False
@@ -196,22 +201,24 @@ class Game:
                         damage = int(obj_data[6])
                         
                         if 0 <= x < width and 0 <= y < height:
-                            # Try to get the object in all sizes
-                            obj_image = None
-                            offset = 16  # Default to small object offset
+                            # Load object metadata from JSON
+                            json_path = os.path.join("Maps", "Common", "Objects", obj_type, f"{obj_type}{obj_id:05d}.json")
+                            metadata = {}
+                            if os.path.exists(json_path):
+                                with open(json_path, 'r') as f:
+                                    metadata = json.load(f)
                             
-                            # Try huge first
-                            obj_image = self.object_collection.get_object(obj_type, obj_id, 'huge')
+                            # Get object image from animation manager
+                            obj_image = self.animation_manager.load_animation(obj_type, obj_id, "static", 0)
                             if obj_image:
-                                offset = 64
+                                obj_image = obj_image[0]  # Get first frame for static animation
                             else:
-                                # Try large
-                                obj_image = self.object_collection.get_object(obj_type, obj_id, 'large')
-                                if obj_image:
-                                    offset = 32
-                                else:
-                                    # Try small
-                                    obj_image = self.object_collection.get_object(obj_type, obj_id, 'small')
+                                # Fallback to object collection if no animation
+                                obj_image = self.object_collection.get_object(obj_type, obj_id, 'huge')
+                                if not obj_image:
+                                    obj_image = self.object_collection.get_object(obj_type, obj_id, 'large')
+                                    if not obj_image:
+                                        obj_image = self.object_collection.get_object(obj_type, obj_id, 'small')
                             
                             if obj_image:
                                 # Get object metadata
@@ -225,9 +232,11 @@ class Game:
                                     'health': health,
                                     'z_index': z_index,
                                     'image': obj_image,
-                                    'offset': offset,
+                                    'offset': 64 if obj_image.get_width() == 128 else 32,
                                     'damage': damage,
-                                    'name': metadata['name']
+                                    'name': metadata.get('name', 'Unknown'),
+                                    'animation_speed': metadata.get('visuals', {}).get('animation_speed', 0),
+                                    'frames': metadata.get('visuals', {}).get('frames', 1)
                                 })
                             else:
                                 print(f"Warning: Could not find object image for {obj_type} {obj_id}")
@@ -558,14 +567,33 @@ class Game:
         self.screen.blit(self.map_surface, dest_rect, source_rect)
 
         # First pass: Draw all non-selected objects and back parts of selection rings
+        objects_to_remove = []  # Track objects that need to be removed
         for obj_data in self.visible_objects_cache:
             obj = obj_data['obj']
             screen_x = obj_data['screen_x']
             screen_y = obj_data['screen_y']
             
+            # Get current animation frame
+            current_frame = self.animation_manager.get_current_frame(
+                obj['id'],
+                "static",
+                0,
+                obj['animation_speed']
+            )
+            
+            # Check if object should be destroyed
+            if current_frame == "DESTROYED":
+                objects_to_remove.append(obj)
+                continue
+            
+            if current_frame:
+                obj_image = current_frame
+            else:
+                obj_image = obj['image']
+            
             # Get object dimensions
-            obj_width = obj['image'].get_width()
-            obj_height = obj['image'].get_height()
+            obj_width = obj_image.get_width()
+            obj_height = obj_image.get_height()
             
             # Add object's rectangle to dirty rects
             obj_rect = pygame.Rect(screen_x, screen_y, obj_width, obj_height)
@@ -583,16 +611,29 @@ class Game:
                               math.pi/2, 3*math.pi/2, self.selection_ring_width)
             
             # Render the object
-            self.screen.blit(obj['image'], (screen_x, screen_y))
-        
+            self.screen.blit(obj_image, (screen_x, screen_y))
+
         # Second pass: Draw front parts of selection rings for selected objects
         for obj_data in self.visible_objects_cache:
             obj = obj_data['obj']
             if self.selected_object == obj:
                 screen_x = obj_data['screen_x']
                 screen_y = obj_data['screen_y']
-                obj_width = obj['image'].get_width()
-                obj_height = obj['image'].get_height()
+                
+                # Get current animation frame for dimensions
+                current_frame = self.animation_manager.get_current_frame(
+                    obj['id'],
+                    "static",
+                    0,
+                    obj['animation_speed']
+                )
+                
+                if current_frame and current_frame != "DESTROYED":
+                    obj_width = current_frame.get_width()
+                    obj_height = current_frame.get_height()
+                else:
+                    obj_width = obj['image'].get_width()
+                    obj_height = obj['image'].get_height()
                 
                 # Determine ring radius based on object size
                 ring_radius = self.selection_ring_huge_radius if obj_width == 128 else self.selection_ring_radius
@@ -602,6 +643,15 @@ class Game:
                 rect = pygame.Rect(x - ring_radius, y - ring_radius * 0.7, ring_radius * 2, ring_radius * 1.4)
                 pygame.draw.arc(self.screen, self.selection_ring_color, rect,
                               -math.pi/2, math.pi/2, self.selection_ring_width)
+
+        # Remove destroyed objects
+        for obj in objects_to_remove:
+            if obj in self.objects:
+                self.objects.remove(obj)
+            if obj == self.selected_object:
+                self.selected_object = None
+                self.selected_object_image = None
+                self.panel.set_object_name("No selection")
 
         # Render the minimap
         self.update_minimap()

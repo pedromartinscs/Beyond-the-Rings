@@ -8,7 +8,13 @@
     },
     "abilities": [],
     "visuals": {
-        "animation_speed": 0,
-        "frames": 1
+        "animation_speed": 100,
+        "static_orientations": 8,
+        "movement_frames": 4,
+        "fire_frames": 6,
+        "destruction_frames": 8,
+        "has_animations": true,
+        "animation_types": ["static", "movement", "fire", "destruction"],
+        "directions": [0, 45, 90, 135, 180, 225, 270, 315]
     }
 }
