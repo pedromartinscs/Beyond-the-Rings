@@ -70,7 +70,7 @@ class AnimationManager:
         self.animation_states[object_id] = state
         self.reset_animation(object_id)
 
-    def get_current_frame(self, object_id, animation_type="static", direction=0, animation_speed=0):
+    def get_current_frame(self, object_id, object_type, animation_type="static", direction=0, animation_speed=0):
         """Get the current animation frame for an object"""
         # Get the current animation state
         current_state = self.animation_states.get(object_id, "static")
@@ -80,7 +80,7 @@ class AnimationManager:
             animation_type = current_state
 
         # Use the same cache key format as load_animation
-        cache_key = f"building{object_id}_{animation_type}_{direction}"
+        cache_key = f"{object_type}{object_id}_{animation_type}_{direction}"
         
         # Initialize tracking for this object if not exists
         if object_id not in self.current_frames:
@@ -91,7 +91,7 @@ class AnimationManager:
         frames = self.animations.get(cache_key)
         if not frames:
             # Try to load the animation if it's not in cache
-            frames = self.load_animation("building", object_id, animation_type, direction)
+            frames = self.load_animation(object_type, object_id, animation_type, direction)
             if not frames:
                 return None
 

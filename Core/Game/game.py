@@ -598,6 +598,7 @@ class Game:
             # Get current animation frame
             current_frame = self.animation_manager.get_current_frame(
                 obj['id'],
+                obj['type'],
                 "static",
                 current_direction,
                 obj['animation_speed']
@@ -645,6 +646,7 @@ class Game:
                 # Get current animation frame for dimensions
                 current_frame = self.animation_manager.get_current_frame(
                     obj['id'],
+                    obj['type'],
                     "static",
                     0,
                     obj['animation_speed']
