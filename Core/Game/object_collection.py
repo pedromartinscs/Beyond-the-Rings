@@ -26,20 +26,17 @@ class ObjectCollection:
             if os.path.exists(json_path):
                 with open(json_path, 'r') as f:
                     data = json.load(f)
-                    metadata = {
-                        'name': data.get('name', f"{obj_type.capitalize()} {obj_id}"),
-                        'description': data.get('description', '')
-                    }
-                    # Cache the metadata
-                    self.object_metadata[cache_key] = metadata
-                    return metadata
+                    # Store all metadata from the JSON file
+                    self.object_metadata[cache_key] = data
+                    return data
         except Exception as e:
             print(f"Error loading metadata for {obj_type} {obj_id}: {e}")
         
         # Return default metadata if JSON file doesn't exist or has an error
         default_metadata = {
             'name': f"{obj_type.capitalize()} {obj_id}",
-            'description': ''
+            'description': '',
+            'buttons': []
         }
         self.object_metadata[cache_key] = default_metadata
         return default_metadata

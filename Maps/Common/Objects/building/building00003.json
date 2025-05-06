@@ -7,6 +7,18 @@
         "z_index": 1
     },
     "abilities": [],
+    "buttons": [
+        {
+            "name": "Attack",
+            "description": "Attack a near by object or unit",
+            "action": "attack"
+        },
+        {
+            "name": "Implode Building",
+            "description": "Self destruct",
+            "action": "destroy"
+        }
+    ],
     "visuals": {
         "animation_speed": 100,
         "static_orientations": 8,

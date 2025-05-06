@@ -108,7 +108,7 @@ class Game:
         self.camera_height = self.screen_height
 
         # Panel variables
-        self.panel = Panel(self.screen)
+        self.panel = Panel(self.screen, self.object_collection)
         self.vertical_panel = VerticalPanel(self.screen, self)  # Pass self to access minimap
         self.panel_visible = False  # Track bottom panel visibility
         self.vertical_panel_visible = False  # Track vertical panel visibility
@@ -381,7 +381,6 @@ class Game:
                 elif not self.is_click_on_panels(mouse_pos):
                     self.selected_object = None  # Clear current selection
                     self.selected_object_image = None  # Clear selected object image
-                    self.panel.set_object_name("No selection")  # Reset object name
                     
                     # Get tile coordinates from mouse position
                     tile_x, tile_y = self.get_tile_from_screen_pos(mouse_pos[0], mouse_pos[1])
@@ -411,8 +410,11 @@ class Game:
                         except:
                             self.selected_object_image = self.default_selection
                         
-                        # Set the object name in the panel
-                        self.panel.set_object_name(self.selected_object['name'])
+                        # Update the panel with the selected object
+                        self.panel.set_selected_object(self.selected_object)
+                    else:
+                        # Clear the panel if no object is selected
+                        self.panel.set_selected_object(None)
 
         elif event.type == pygame.MOUSEBUTTONUP:
             self.is_dragging_minimap = False
@@ -702,7 +704,7 @@ class Game:
             if obj == self.selected_object:
                 self.selected_object = None
                 self.selected_object_image = None
-                self.panel.set_object_name("No selection")
+                self.panel.set_selected_object(None)
 
         # Render the minimap
         self.update_minimap()

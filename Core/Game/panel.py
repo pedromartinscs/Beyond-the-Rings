@@ -3,8 +3,9 @@ import os
 from Core.Menu.button import Button
 
 class Panel:
-    def __init__(self, screen):
+    def __init__(self, screen, object_collection):
         self.screen = screen
+        self.object_collection = object_collection
         self.width = screen.get_width()
         self.height = 200  # Height of the panel
         self.color = (50, 50, 50)  # Color of the panel
@@ -108,7 +109,7 @@ class Panel:
         # Grid dimensions
         max_rows = 4
         max_cols = 6
-        total_buttons = 12  # Only create 12 buttons
+        total_buttons = 12  # Maximum number of buttons
         
         # Calculate spacing between buttons
         spacing_x = 8  # Fixed spacing between buttons
@@ -140,40 +141,89 @@ class Panel:
         # Box color and margin
         self.box_color = (48, 82, 101)
         self.box_margin = 1
+
+    def update_buttons_for_object(self, selected_object):
+        """Update buttons based on the selected object's JSON data"""
+        # Clear existing buttons and boxes
+        self.middle_buttons = []
+        self.description_boxes = []
         
-        for i in range(total_buttons):
-            # Calculate row and column
+        if not selected_object:
+            return
+            
+        # Get object metadata
+        metadata = self.object_collection.get_object_metadata(selected_object['type'], selected_object['id'])
+        if not metadata or 'buttons' not in metadata or not metadata['buttons']:
+            print(f"No buttons found for {selected_object['type']} {selected_object['id']}")
+            return
+            
+        # Button dimensions and layout
+        button_width = 32
+        button_height = 32
+        spacing_x = 8
+        spacing_y = 8
+        max_cols = 6
+        
+        # Calculate layout
+        total_buttons = len(metadata['buttons'])
+        if total_buttons == 0:
+            return
+            
+        actual_cols = min(max_cols, total_buttons)
+        if actual_cols == 0:
+            return
+            
+        total_width = self.middle_area_width - (spacing_x * (actual_cols - 1))
+        box_width = (total_width - (button_width * actual_cols)) // actual_cols
+        
+        # Calculate starting position
+        start_x = (self.middle_area_width - (actual_cols * (button_width + box_width + spacing_x) - spacing_x)) // 2
+        start_y = 30
+        
+        # Create buttons for each action in the JSON
+        for i, button_data in enumerate(metadata['buttons']):
+            # Calculate position
             col = i % actual_cols
             row = i // actual_cols
+            x = start_x + col * (button_width + spacing_x + box_width)
+            y = start_y + row * (button_height + spacing_y)
             
-            # Skip if we exceed max rows
-            if row >= max_rows:
-                break
-                
-            # Calculate button position
-            x = column_positions[col]
-            y = row * (button_height + spacing_y)
+            # Try to load action-specific button images
+            action = button_data['action']
+            default_button = "Images/tiny_button_basic.png"
+            default_button_hover = "Images/tiny_button_basic_hover.png"
             
-            # Create button with hover image
+            # Construct paths for action-specific button images
+            action_button = f"Images/{action}_tiny_button_basic.png"
+            action_button_hover = f"Images/{action}_tiny_button_basic_hover.png"
+            
+            # Check if action-specific images exist
+            button_image = action_button if os.path.exists(action_button) else default_button
+            button_hover_image = action_button_hover if os.path.exists(action_button_hover) else default_button_hover
+            
+            # Create button
             button = Button(
                 x, y, 0, 0, button_width, button_height,
                 "", None,  # No text or action for now
-                "Images/tiny_button_basic.png",
-                "Images/tiny_button_basic_hover.png"  # Hover image
+                button_image,
+                button_hover_image
             )
             
             # Create description box
             box = {
                 'rect': pygame.Rect(x + button_width + self.box_margin, y, box_width, button_height),
-                'title': "Mock Title",
-                'description': "Mock Description that might be longer than one line and needs to wrap, very important message that I'm making specially long to test the wrapping functionality",
+                'title': button_data['name'],
+                'description': button_data['description'],
                 'button': button,
+                'action': button_data['action'],
                 'lines': [],  # Will store wrapped description lines
                 'is_wrapped': False  # Flag to track if description was wrapped
             }
             
             self.middle_buttons.append(button)
             self.description_boxes.append(box)
+            
+        print(f"Created {len(self.middle_buttons)} buttons for {selected_object['type']} {selected_object['id']}")
 
     def wrap_text(self, text, font, max_width):
         """Wrap text to fit within max_width and add ellipsis if needed"""
@@ -365,6 +415,11 @@ class Panel:
         """Update the object name text"""
         self.object_name_text = name if name else "No selection"
         self.object_name_surface = self.object_name_font.render(self.object_name_text, True, self.object_name_color)
+
+    def set_selected_object(self, selected_object):
+        """Update the panel for a selected object"""
+        self.set_object_name(selected_object['name'] if selected_object else "No selection")
+        self.update_buttons_for_object(selected_object)
 
     def render_text(self):
         """Render just the text part of the panel"""
