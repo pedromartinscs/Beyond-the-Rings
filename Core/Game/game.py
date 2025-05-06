@@ -7,6 +7,7 @@ from Core.Game.panel import Panel
 from Core.Game.vertical_panel import VerticalPanel
 from Core.Game.object_collection import ObjectCollection
 from Core.Game.animation_manager import AnimationManager
+from Core.UI.cursor_manager import CursorManager
 
 class Game:
     def __init__(self, screen):
@@ -22,8 +23,9 @@ class Game:
         pygame.mixer.music.load(self.music_file)
         pygame.mixer.music.play(-1)  # Play in an infinite loop
 
-        # Initialize animation manager
+        # Initialize managers
         self.animation_manager = AnimationManager()
+        self.cursor_manager = CursorManager()
 
         # Mouse state tracking
         self.is_dragging_minimap = False
@@ -109,6 +111,7 @@ class Game:
 
         # Panel variables
         self.panel = Panel(self.screen, self.object_collection)
+        self.panel.game = self  # Connect panel to game instance
         self.vertical_panel = VerticalPanel(self.screen, self)  # Pass self to access minimap
         self.panel_visible = False  # Track bottom panel visibility
         self.vertical_panel_visible = False  # Track vertical panel visibility
@@ -377,6 +380,25 @@ class Game:
                     self.is_dragging_minimap = True
                     self.last_mouse_pos = mouse_pos
                     self.update_camera_from_minimap(mouse_pos)
+                # Check if we're in targeting mode
+                elif self.panel.is_targeting:
+                    # Get tile coordinates from mouse position
+                    tile_x, tile_y = self.get_tile_from_screen_pos(mouse_pos[0], mouse_pos[1])
+                    
+                    # Get objects at the clicked tile
+                    objects_at_tile = self.get_objects_at_tile(tile_x, tile_y)
+                    
+                    if objects_at_tile:
+                        # If there are objects at this tile, select the one with highest z-index
+                        target_object = max(objects_at_tile, key=lambda x: x['z_index'])
+                        self.panel.handle_target_selection(target_object)
+                    else:
+                        # If no objects at this tile, check for huge objects at adjacent tiles
+                        huge_objects = self.get_huge_objects_at_adjacent_tiles(tile_x, tile_y)
+                        if huge_objects:
+                            # Select the huge object with highest z-index
+                            target_object = max(huge_objects, key=lambda x: x['z_index'])
+                            self.panel.handle_target_selection(target_object)
                 # Finally check for object selection, but only if not clicking on panels
                 elif not self.is_click_on_panels(mouse_pos):
                     self.selected_object = None  # Clear current selection
@@ -415,6 +437,10 @@ class Game:
                     else:
                         # Clear the panel if no object is selected
                         self.panel.set_selected_object(None)
+            elif event.button == 3:  # Right click
+                # Cancel targeting mode if right clicked
+                if self.panel.is_targeting:
+                    self.panel.cancel_targeting()
 
         elif event.type == pygame.MOUSEBUTTONUP:
             self.is_dragging_minimap = False
@@ -427,7 +453,11 @@ class Game:
                     self.update_camera_from_minimap(mouse_pos)
                 self.last_mouse_pos = mouse_pos
 
-        # Pass events to the vertical panel if it's visible
+        # Pass events to the panels
+        if self.panel_visible:
+            if self.panel.handle_events(event):
+                return  # Event was handled by panel
+                
         if self.vertical_panel_visible:
             self.vertical_panel.handle_events(event)
 
@@ -758,9 +788,15 @@ class Game:
 
         # Update only the dirty areas of the screen
         if self.dirty_rects:
+            # Add cursor's last position to dirty rects if it exists
+            if self.cursor_manager.last_rect:
+                self.dirty_rects.append(self.cursor_manager.last_rect)
             pygame.display.update(self.dirty_rects)
         else:
             pygame.display.flip()
+
+        # Render cursor last to ensure it's always on top
+        self.cursor_manager.render(self.screen)
 
     def update_minimap(self):
         # Clear the minimap surface

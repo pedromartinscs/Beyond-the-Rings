@@ -2,6 +2,7 @@ import pygame
 import sys
 from Core.Credits.credits import CreditsScreen
 from Core.Game.game import Game
+from Core.UI.cursor_manager import CursorManager
 from .button import Button
 
 
@@ -33,6 +34,10 @@ class MainMenu:
         # Load hover sound effect
         self.hover_sound = pygame.mixer.Sound("Sounds/hover.wav")  # Replace with your hover sound file
         self.hovered_button = None  # Initialize hovered_button to track mouse hover
+
+        # Initialize cursor manager
+        self.cursor_manager = CursorManager()
+
     # endregion
 
     # region Methods
@@ -116,6 +121,7 @@ class MainMenu:
             for button in self.buttons:
                 if button.rect.collidepoint(event.pos):  # If the mouse is over the button
                     hovered_button = button
+                    self.cursor_manager.set_cursor('hover')
                     break
 
             # If the hovered button is different from the previous one, play the hover sound
@@ -124,7 +130,7 @@ class MainMenu:
                 self.hover_sound.play()  # Play the hover sound effect
             elif not hovered_button:  # Reset the hovered button when no button is hovered
                 self.hovered_button = None
-
+                self.cursor_manager.set_cursor('normal')
 
     def update(self):
         if self.next_action:
@@ -139,4 +145,7 @@ class MainMenu:
         # Draw all the buttons
         for button in self.buttons:
             button.draw(self.screen)
+
+        # Render cursor last to ensure it's always on top
+        self.cursor_manager.render(self.screen)
     # endregion

@@ -1,6 +1,6 @@
 import pygame
 import sys
-
+from Core.UI.cursor_manager import CursorManager
 from ..Menu.button import Button
 
 class CreditsScreen:
@@ -33,6 +33,9 @@ class CreditsScreen:
         # Load hover sound effect
         self.hover_sound = pygame.mixer.Sound("Sounds/hover.wav")  # Replace with your hover sound file
         self.hovered_button = None  # Initialize to track hover state
+
+        # Initialize cursor manager
+        self.cursor_manager = CursorManager()
 
     def go_back(self):
         print("Going back to main menu...")
@@ -83,9 +86,11 @@ class CreditsScreen:
                 if self.hovered_button != self.back_button:
                     self.hovered_button = self.back_button
                     self.hover_sound.play()  # Play the hover sound effect
+                self.cursor_manager.set_cursor('hover')
             else:
                 # If no button is being hovered, reset hovered_button
                 self.hovered_button = None
+                self.cursor_manager.set_cursor('normal')
 
     def update(self):
         if self.next_action:
@@ -99,3 +104,6 @@ class CreditsScreen:
 
         # Draw the back button
         self.back_button.draw(self.screen)
+
+        # Render cursor last to ensure it's always on top
+        self.cursor_manager.render(self.screen)

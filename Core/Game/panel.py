@@ -1,6 +1,7 @@
 import pygame
 import os
 from Core.Menu.button import Button
+from Core.UI.cursor_manager import CursorManager
 
 class Panel:
     def __init__(self, screen, object_collection):
@@ -15,6 +16,14 @@ class Panel:
         self.speed = 10  # Animation speed
         self.cap_width = 60  # Width of the left and right caps
         self.arrow_width = 20  # Width of the arrow section
+
+        # Add target selection state
+        self.is_targeting = False  # Whether we're in target selection mode
+        self.current_action = None  # Current action being performed
+        self.attacker = None  # The object performing the action
+        
+        # Get cursor manager instance
+        self.cursor_manager = CursorManager()
 
         # Load life bar images
         self.life_bar_left = pygame.image.load("Images/life_bar_left.png").convert_alpha()
@@ -466,6 +475,19 @@ class Panel:
             # Check if mouse is over any box
             current_hovered_box = None
             
+            # Handle mouse events
+            mouse_buttons = pygame.mouse.get_pressed()
+            if mouse_buttons[0]:  # Left mouse button
+                for box in self.description_boxes:
+                    button = box['button']
+                    button_rect = button.rect.copy()
+                    button_rect.x += middle_x
+                    button_rect.y += middle_y
+                    
+                    if button_rect.collidepoint(mouse_pos):
+                        self.handle_button_click(box)
+                        break
+            
             # Render buttons and boxes
             for box in self.description_boxes:
                 button = box['button']
@@ -548,11 +570,6 @@ class Panel:
         # Render the handle
         handle_image = self.handle_close_surface if self.visible else self.handle_open_surface
         self.screen.blit(handle_image, (0, handle_y))
-        
-        # Draw tooltip if needed (after handle to ensure it's on top)
-        if self.current_tooltip:
-            tooltip_surface, tooltip_pos = self.current_tooltip
-            self.screen.blit(tooltip_surface, tooltip_pos)
 
     def get_left_area_rect(self):
         """Returns the rectangle for the left area of the panel."""
@@ -602,3 +619,81 @@ class Panel:
 
         # Return True if object should be destroyed
         return selected_object['health'] != -1 and selected_object['damage'] >= selected_object['health']
+
+    def handle_events(self, event):
+        """Handle events for the panel"""
+        if not self.visible:
+            return
+
+        if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:  # Left click
+            mouse_pos = pygame.mouse.get_pos()
+            
+            # Check if click is in the middle area
+            middle_x = self.middle_area_pos[0]
+            middle_y = self.current_y + self.middle_area_pos[1]
+            
+            for box in self.description_boxes:
+                button = box['button']
+                button_rect = button.rect.copy()
+                button_rect.x += middle_x
+                button_rect.y += middle_y
+                
+                if button_rect.collidepoint(mouse_pos):
+                    print(f"Button clicked: {box['action']}")  # Debug print
+                    self.handle_button_click(box)
+                    return True  # Event was handled
+                    
+        return False  # Event was not handled
+
+    def handle_button_click(self, button_data):
+        """Handle button click and initiate target selection if needed"""
+        if not button_data or not button_data['action']:
+            return
+
+        # Get the selected object from the game
+        selected_object = self.game.selected_object if hasattr(self, 'game') else None
+        if not selected_object:
+            print("No object selected")  # Debug print
+            return
+
+        print(f"Handling button click: {button_data['action']}")  # Debug print
+
+        # Store the current action and attacker
+        self.current_action = button_data['action']
+        self.attacker = selected_object
+
+        # If it's an attack action, enter target selection mode
+        if self.current_action == 'attack':
+            print("Entering targeting mode")  # Debug print
+            self.is_targeting = True
+            self.cursor_manager.set_cursor('aim')
+        else:
+            # For other actions, just execute them directly
+            self.execute_action(self.current_action, selected_object, None)
+
+    def execute_action(self, action, attacker, target):
+        """Execute the given action with the attacker and target"""
+        # TODO: Implement actual action execution
+        print(f"Executing {action} from {attacker['type']} {attacker['id']} to {target['type'] if target else 'None'} {target['id'] if target else 'None'}")
+        
+        # Reset targeting state
+        self.is_targeting = False
+        self.current_action = None
+        self.attacker = None
+        self.cursor_manager.set_cursor('normal')
+
+    def handle_target_selection(self, target_object):
+        """Handle target selection when in targeting mode"""
+        if not self.is_targeting or not self.attacker:
+            return
+
+        # Execute the action with the selected target
+        self.execute_action(self.current_action, self.attacker, target_object)
+
+    def cancel_targeting(self):
+        """Cancel target selection mode"""
+        if self.is_targeting:
+            self.is_targeting = False
+            self.current_action = None
+            self.attacker = None
+            self.cursor_manager.set_cursor('normal')
