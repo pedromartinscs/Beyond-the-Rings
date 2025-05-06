@@ -278,6 +278,62 @@ class Game:
                         math.pi/2,      # end angle   (+90°)
                         width)
 
+    def get_tile_from_screen_pos(self, screen_x, screen_y):
+        """Convert screen coordinates to tile coordinates"""
+        world_x = screen_x + self.camera_x
+        world_y = screen_y + self.camera_y
+        tile_x = world_x // self.tile_size
+        tile_y = world_y // self.tile_size
+        return tile_x, tile_y
+
+    def get_objects_at_tile(self, tile_x, tile_y):
+        """Get all objects at a specific tile coordinate"""
+        objects_at_tile = []
+        for obj in self.objects:
+            if obj['x'] == tile_x and obj['y'] == tile_y:
+                objects_at_tile.append(obj)
+        return objects_at_tile
+
+    def get_huge_objects_at_adjacent_tiles(self, tile_x, tile_y):
+        """Get huge objects (128x128) that might be at adjacent tiles"""
+        huge_objects = []
+        adjacent_tiles = [
+            (tile_x - 1, tile_y),  # left
+            (tile_x + 1, tile_y),  # right
+            (tile_x, tile_y - 1),  # top
+            (tile_x, tile_y + 1)   # bottom
+        ]
+        
+        for adj_x, adj_y in adjacent_tiles:
+            for obj in self.objects:
+                # Check if it's a huge object (128x128) at this adjacent tile
+                if (obj['x'] == adj_x and obj['y'] == adj_y and 
+                    obj['image'].get_width() == 128 and 
+                    obj['image'].get_height() == 128):
+                    huge_objects.append(obj)
+        
+        return huge_objects
+
+    def is_click_on_panels(self, mouse_pos):
+        """Check if the click is on any visible panel"""
+        mouse_x, mouse_y = mouse_pos
+        
+        # Check horizontal panel (bottom panel)
+        if self.panel_visible or self.panel.current_y < self.screen_height - self.panel.handle_height:
+            # Panel is visible or animating
+            panel_y = self.panel.current_y
+            if mouse_y >= panel_y:
+                return True
+        
+        # Check vertical panel (side panel)
+        if self.vertical_panel_visible or self.vertical_panel.x > -self.vertical_panel.width:
+            # Panel is visible or animating
+            panel_x = self.vertical_panel.x
+            if 0 <= mouse_x <= self.vertical_panel.width:
+                return True
+        
+        return False
+
     def handle_events(self, event):
         if event.type == pygame.QUIT:
             pygame.quit()
@@ -321,55 +377,42 @@ class Game:
                     self.is_dragging_minimap = True
                     self.last_mouse_pos = mouse_pos
                     self.update_camera_from_minimap(mouse_pos)
-                # Finally check for object selection
-                else:
+                # Finally check for object selection, but only if not clicking on panels
+                elif not self.is_click_on_panels(mouse_pos):
                     self.selected_object = None  # Clear current selection
                     self.selected_object_image = None  # Clear selected object image
                     self.panel.set_object_name("No selection")  # Reset object name
-                    mouse_x, mouse_y = mouse_pos
                     
-                    # Convert screen coordinates to world coordinates
-                    world_x = mouse_x + self.camera_x
-                    world_y = mouse_y + self.camera_y
+                    # Get tile coordinates from mouse position
+                    tile_x, tile_y = self.get_tile_from_screen_pos(mouse_pos[0], mouse_pos[1])
                     
-                    # Check each object for selection
-                    for obj in self.objects:
-                        obj_world_x = obj['x'] * self.tile_size
-                        obj_world_y = obj['y'] * self.tile_size
-                        obj_width = obj['image'].get_width()
-                        obj_height = obj['image'].get_height()
-                        
-                        # Calculate object's screen position
-                        obj_screen_x = obj_world_x - self.camera_x
-                        obj_screen_y = obj_world_y - self.camera_y
-                        
-                        # Calculate offset for centering
-                        offset = obj['offset'] - self.tile_size // 2
-                        
-                        # Create a rect for the object
-                        obj_rect = pygame.Rect(
-                            obj_screen_x - offset,
-                            obj_screen_y - offset,
-                            obj_width,
-                            obj_height
-                        )
-                        
-                        # Check if mouse is within the object's rect
-                        if obj_rect.collidepoint(mouse_x, mouse_y):
-                            self.selected_object = obj
-                            # Try to load the object's image from the Images folder
-                            try:
-                                image_path = os.path.join("Images", f"{obj['type']}{obj['id']:05d}.png")
-                                if os.path.exists(image_path):
-                                    self.selected_object_image = pygame.image.load(image_path).convert_alpha()
-                                else:
-                                    self.selected_object_image = self.default_selection
-                            except:
+                    # First check for objects at the clicked tile
+                    objects_at_tile = self.get_objects_at_tile(tile_x, tile_y)
+                    
+                    if objects_at_tile:
+                        # If there are objects at this tile, select the one with highest z-index
+                        self.selected_object = max(objects_at_tile, key=lambda x: x['z_index'])
+                    else:
+                        # If no objects at this tile, check for huge objects at adjacent tiles
+                        huge_objects = self.get_huge_objects_at_adjacent_tiles(tile_x, tile_y)
+                        if huge_objects:
+                            # Select the huge object with highest z-index
+                            self.selected_object = max(huge_objects, key=lambda x: x['z_index'])
+                    
+                    # If we found an object to select, update the selection
+                    if self.selected_object:
+                        # Try to load the object's image from the Images folder
+                        try:
+                            image_path = os.path.join("Images", f"{self.selected_object['type']}{self.selected_object['id']:05d}.png")
+                            if os.path.exists(image_path):
+                                self.selected_object_image = pygame.image.load(image_path).convert_alpha()
+                            else:
                                 self.selected_object_image = self.default_selection
-                            
-                            # Set the object name in the panel
-                            self.panel.set_object_name(obj['name'])
-                            break
+                        except:
+                            self.selected_object_image = self.default_selection
+                        
+                        # Set the object name in the panel
+                        self.panel.set_object_name(self.selected_object['name'])
 
         elif event.type == pygame.MOUSEBUTTONUP:
             self.is_dragging_minimap = False
@@ -428,10 +471,9 @@ class Game:
         edge_speed = base_speed * 2  # Double speed at edges
 
         # Calculate camera movement
-        dx = 0
-        dy = 0
+        dx = dy = 0
 
-        # Horizontal movement
+        # Horizontal movement with optimized checks
         if mouse_x < edge_area:
             dx = -edge_speed
         elif mouse_x > self.screen_width - edge_area:
@@ -441,7 +483,7 @@ class Game:
         elif mouse_x > self.screen_width - edge_area * 2:
             dx = base_speed
 
-        # Vertical movement
+        # Vertical movement with optimized checks
         if mouse_y < edge_area:
             dy = -edge_speed
         elif mouse_y > self.screen_height - edge_area:
@@ -451,16 +493,21 @@ class Game:
         elif mouse_y > self.screen_height - edge_area * 2:
             dy = edge_speed
 
-        # Update camera position
+        # Update camera position if movement is needed
         if dx != 0 or dy != 0:
             old_camera_x = self.camera_x
             old_camera_y = self.camera_y
-            self.camera_x = max(0, min(self.camera_x + dx, 
-                                     self.map_width * self.tile_size - self.camera_width))
-            self.camera_y = max(0, min(self.camera_y + dy,
-                                     self.map_height * self.tile_size - self.camera_height))
-            # Set camera_moved if the position actually changed
-            if old_camera_x != self.camera_x or old_camera_y != self.camera_y:
+            
+            # Calculate new camera position
+            new_camera_x = max(0, min(self.camera_x + dx, 
+                                    self.map_width * self.tile_size - self.camera_width))
+            new_camera_y = max(0, min(self.camera_y + dy,
+                                    self.map_height * self.tile_size - self.camera_height))
+            
+            # Only update if position actually changed
+            if new_camera_x != old_camera_x or new_camera_y != old_camera_y:
+                self.camera_x = new_camera_x
+                self.camera_y = new_camera_y
                 self.camera_moved = True
 
         # Update panel animations and check for screen transitions
@@ -476,16 +523,18 @@ class Game:
         self.visible_objects_cache = []
         
         # Calculate visible area in world coordinates with padding
-        visible_left = self.camera_x - 100  # Add padding to ensure objects are visible when partially off-screen
+        visible_left = self.camera_x - 100
         visible_right = self.camera_x + self.screen_width + 100
         visible_top = self.camera_y - 100
         visible_bottom = self.camera_y + self.screen_height + 100
         
-        # Pre-calculate tile size for faster access
+        # Pre-calculate tile size and half tile size for faster access
         tile_size = self.tile_size
-        
-        # Pre-calculate half tile size for offset calculations
         half_tile = tile_size // 2
+        
+        # Pre-calculate camera position for screen coordinate conversion
+        camera_x = self.camera_x
+        camera_y = self.camera_y
         
         for obj in self.objects:
             # Calculate object's world position in pixels
@@ -496,7 +545,7 @@ class Game:
             obj_width = obj['image'].get_width()
             obj_height = obj['image'].get_height()
             
-            # Check if object is in view with padding using simple bounds check
+            # Quick bounds check for object visibility
             if (obj_world_x + obj_width < visible_left or 
                 obj_world_x > visible_right or
                 obj_world_y + obj_height < visible_top or
@@ -504,8 +553,8 @@ class Game:
                 continue
             
             # Calculate object's screen position
-            obj_screen_x = obj_world_x - self.camera_x
-            obj_screen_y = obj_world_y - self.camera_y
+            obj_screen_x = obj_world_x - camera_x
+            obj_screen_y = obj_world_y - camera_y
             
             # Calculate offset for centering
             offset = obj['offset'] - half_tile
@@ -533,13 +582,9 @@ class Game:
             # Update visible objects when camera moves
             self.update_visible_objects()
 
-        # Calculate exact camera position in tiles (floating point)
-        camera_tile_x = self.camera_x / self.tile_size
-        camera_tile_y = self.camera_y / self.tile_size
-
-        # Calculate visible area in tiles with extra buffer, ensuring we round down
-        start_tile_x = max(0, int(camera_tile_x - 1))
-        start_tile_y = max(0, int(camera_tile_y - 1))
+        # Calculate visible area in tiles with extra buffer
+        start_tile_x = max(0, int(self.camera_x / self.tile_size - 1))
+        start_tile_y = max(0, int(self.camera_y / self.tile_size - 1))
         end_tile_x = min(self.map_width, start_tile_x + (self.camera_width // self.tile_size) + 3)
         end_tile_y = min(self.map_height, start_tile_y + (self.camera_height // self.tile_size) + 3)
 
@@ -547,15 +592,13 @@ class Game:
         offset_x = -(self.camera_x - start_tile_x * self.tile_size)
         offset_y = -(self.camera_y - start_tile_y * self.tile_size)
 
-        # Calculate the source rectangle for the map surface
+        # Calculate the source and destination rectangles for the map surface
         source_rect = pygame.Rect(
             start_tile_x * self.tile_size,
             start_tile_y * self.tile_size,
             (end_tile_x - start_tile_x) * self.tile_size,
             (end_tile_y - start_tile_y) * self.tile_size
         )
-
-        # Calculate the destination rectangle using precise offsets
         dest_rect = pygame.Rect(
             int(offset_x),
             int(offset_y),
@@ -565,6 +608,9 @@ class Game:
 
         # Blit the visible portion of the pre-rendered map
         self.screen.blit(self.map_surface, dest_rect, source_rect)
+
+        # Pre-calculate mouse position for object selection
+        mouse_x, mouse_y = pygame.mouse.get_pos()
 
         # First pass: Draw all non-selected objects and back parts of selection rings
         objects_to_remove = []  # Track objects that need to be removed
@@ -579,21 +625,14 @@ class Game:
             
             # For turrets (building00003), use default direction unless selected
             current_direction = 0
-            if obj['type'] == 'building' and obj['id'] == 3:  # Defense Tower
-                # Only calculate direction if the turret is selected
-                if self.selected_object == obj:
-                    # Get mouse position for turret targeting
-                    mouse_x, mouse_y = pygame.mouse.get_pos()
-                    mouse_world_x = mouse_x + self.camera_x
-                    mouse_world_y = mouse_y + self.camera_y
-                    
-                    # Get object metadata to check if it has directions
-                    metadata = self.animation_manager.load_object_metadata(obj['type'], obj['id'])
-                    if metadata and 'visuals' in metadata and 'directions' in metadata['visuals']:
-                        # Calculate angle to mouse
-                        angle = self.calculate_angle(obj_world_x, obj_world_y, mouse_world_x, mouse_world_y)
-                        # Get nearest available direction
-                        current_direction = self.get_nearest_direction(angle, metadata['visuals']['directions'])
+            if obj['type'] == 'building' and obj['id'] == 3 and self.selected_object == obj:
+                # Calculate angle to mouse for selected turret
+                mouse_world_x = mouse_x + self.camera_x
+                mouse_world_y = mouse_y + self.camera_y
+                angle = self.calculate_angle(obj_world_x, obj_world_y, mouse_world_x, mouse_world_y)
+                metadata = self.animation_manager.load_object_metadata(obj['type'], obj['id'])
+                if metadata and 'visuals' in metadata and 'directions' in metadata['visuals']:
+                    current_direction = self.get_nearest_direction(angle, metadata['visuals']['directions'])
             
             # Get current animation frame
             current_frame = self.animation_manager.get_current_frame(
@@ -609,10 +648,7 @@ class Game:
                 objects_to_remove.append(obj)
                 continue
             
-            if current_frame:
-                obj_image = current_frame
-            else:
-                obj_image = obj['image']
+            obj_image = current_frame if current_frame else obj['image']
             
             # Get object dimensions
             obj_width = obj_image.get_width()
@@ -624,10 +660,7 @@ class Game:
             
             # Draw selection ring behind the object if it's selected
             if self.selected_object == obj:
-                # Determine ring radius based on object size
                 ring_radius = self.selection_ring_huge_radius if obj_width == 128 else self.selection_ring_radius
-                
-                # Draw back half of selection ring
                 x, y = screen_x + obj_width // 2, screen_y + obj_height // 2
                 rect = pygame.Rect(x - ring_radius, y - ring_radius * 0.7, ring_radius * 2, ring_radius * 1.4)
                 pygame.draw.arc(self.screen, self.selection_ring_color, rect,
@@ -652,17 +685,11 @@ class Game:
                     obj['animation_speed']
                 )
                 
-                if current_frame and current_frame != "DESTROYED":
-                    obj_width = current_frame.get_width()
-                    obj_height = current_frame.get_height()
-                else:
-                    obj_width = obj['image'].get_width()
-                    obj_height = obj['image'].get_height()
-                
-                # Determine ring radius based on object size
-                ring_radius = self.selection_ring_huge_radius if obj_width == 128 else self.selection_ring_radius
+                obj_width = current_frame.get_width() if current_frame and current_frame != "DESTROYED" else obj['image'].get_width()
+                obj_height = current_frame.get_height() if current_frame and current_frame != "DESTROYED" else obj['image'].get_height()
                 
                 # Draw front half of selection ring
+                ring_radius = self.selection_ring_huge_radius if obj_width == 128 else self.selection_ring_radius
                 x, y = screen_x + obj_width // 2, screen_y + obj_height // 2
                 rect = pygame.Rect(x - ring_radius, y - ring_radius * 0.7, ring_radius * 2, ring_radius * 1.4)
                 pygame.draw.arc(self.screen, self.selection_ring_color, rect,
@@ -694,7 +721,7 @@ class Game:
             left_area_rect = self.panel.get_left_area_rect()
             
             # Adjust the y position based on the panel's current position
-            left_area_rect.y = self.panel.current_y + self.panel.margin - 5  # Reduced by 10 pixels (from +5 to -5)
+            left_area_rect.y = self.panel.current_y + self.panel.margin - 5
             
             # Draw the selected object image or default image
             if self.selected_object_image:
