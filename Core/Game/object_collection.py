@@ -75,7 +75,7 @@ class ObjectCollection:
                                 continue
                                 
                             obj_type = filename[:type_end].lower()  # Use filename prefix as type
-                            number_str = filename[type_end:-4]  # Remove .png
+                            number_str = filename[type_end:-4]
                             
                             if number_str.isdigit():  # Check if it's a valid number
                                 number = int(number_str)
@@ -138,12 +138,7 @@ class ObjectCollection:
                     self.huge_objects[obj_type].sort(key=lambda x: x['id'])
 
     def get_objects_by_size(self, size=None):
-        """Return all objects of a specific size, or all objects ordered by size if no size is specified.
-        Args:
-            size (str, optional): The size of objects to return ('small', 'large', or 'huge'). If None, returns all objects.
-        Returns:
-            list: List of objects of the specified size, or all objects ordered by size.
-        """
+        """Return all objects of a specific size, or all objects ordered by size if no size is specified."""
         if size == 'small':
             # Return all small objects from all types
             all_small = []
@@ -177,14 +172,7 @@ class ObjectCollection:
             return sorted(all_objects, key=lambda x: (x['type'], x['id']))
 
     def get_objects_by_type(self, object_type, size=None):
-        """Return all objects of a specific type and size.
-        This function is maintained for backward compatibility.
-        Args:
-            object_type (str): The type of object to return.
-            size (str, optional): The size of objects to return ('small', 'large', or 'huge').
-        Returns:
-            list: List of objects of the specified type and size.
-        """
+        """Return all objects of a specific type and size."""
         if size == 'small':
             return self.small_objects.get(object_type, [])
         elif size == 'large':
@@ -198,14 +186,7 @@ class ObjectCollection:
                    self.huge_objects.get(object_type, []))
 
     def get_object(self, obj_type, obj_id, size='small'):
-        """Get an object by its type and ID.
-        Args:
-            obj_type (str): The type of object (e.g., "Trees")
-            obj_id (int): The ID of the object
-            size (str): The size of the object ('small', 'large', or 'huge')
-        Returns:
-            pygame.Surface: The object's image, or None if not found
-        """
+        """Get an object by its type and ID."""
         if size == 'small':
             objects = self.small_objects.get(obj_type, [])
         elif size == 'large':

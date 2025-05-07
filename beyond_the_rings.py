@@ -26,16 +26,27 @@ game_context = GameContext(screen)
 
 # Main game function
 def main():
+    # Main game loop
     running = True
-
     while running:
-        game_context.handle_events()
+        # Handle events
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            game_context.handle_events(event)
+        
+        # Update game state
         game_context.update()
+        
+        # Render the game
         game_context.render()
-        pygame.display.update()
-        pygame.time.Clock().tick(60)  # Maintain 60 FPS
-
+        
+        # Update the display
+        pygame.display.flip()
+    
+    # Clean up
     pygame.quit()
+    sys.exit()
 
 if __name__ == "__main__":
     main()

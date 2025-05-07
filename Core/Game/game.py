@@ -3,29 +3,48 @@ import sys
 import os
 import math
 import json
-from Core.Game.panel import Panel
-from Core.Game.vertical_panel import VerticalPanel
+from Core.UI.base_screen import BaseScreen
+from Core.UI.panel import Panel
+from Core.UI.minimap import Minimap
 from Core.Game.object_collection import ObjectCollection
-from Core.Game.animation_manager import AnimationManager
 from Core.UI.cursor_manager import CursorManager
+from Core.Game.animation_manager import AnimationManager
+from Core.Game.vertical_panel import VerticalPanel
 
-class Game:
+class Game(BaseScreen):
     def __init__(self, screen):
-        self.screen = screen
-        self.screen_width = screen.get_width()
+        super().__init__(screen)
         self.screen_height = screen.get_height()
+        self.screen_width = screen.get_width()
+        self.panel_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
 
-        # Initialize the mixer for playing music
-        pygame.mixer.init()  # Initialize the pygame mixer
-        
-        # Load and play the combined music file
-        self.music_file = "Music/__bertsz__cyberpunk_MULTI.mp3"
-        pygame.mixer.music.load(self.music_file)
-        pygame.mixer.music.play(-1)  # Play in an infinite loop
+        # Initialize music
+        pygame.mixer.init()
+        self.music_file = "Music/672781__bertsz__cyberpunk_dump.flac"
+        if not pygame.mixer.music.get_busy():
+            pygame.mixer.music.load(self.music_file)
+            pygame.mixer.music.play(-1, 6.0)
+
+        # Initialize object collection before panels
+        self.object_collection = ObjectCollection()
+        self.objects = []  # Will be populated in load_map
+
+        # Initialize panels
+        self.panels = []
+        self.create_panels()
+
+        # Initialize object collections
+        self.object_collections = []
+        self.create_object_collections()
+
+        # Initialize minimap
+        self.minimap = Minimap(self.screen_width, self.screen_height)
+
+        # Initialize dirty rects for optimization
+        self.dirty_rects = []
 
         # Initialize managers
         self.animation_manager = AnimationManager()
-        self.cursor_manager = CursorManager()
 
         # Mouse state tracking
         self.is_dragging_minimap = False
@@ -63,10 +82,6 @@ class Game:
                 default_tile = pygame.Surface((self.tile_size, self.tile_size))
                 default_tile.fill((i * 10, i * 10, i * 10))  # Different shade for each missing tile
                 self.tiles.append(default_tile)
-
-        # Initialize object collection before loading map
-        self.object_collection = ObjectCollection()
-        self.objects = []  # Will be populated in load_map
 
         # Load the map from file
         map_path = os.path.join("Maps", "Battle", "map.map")
@@ -123,11 +138,29 @@ class Game:
         self.camera_moved = True
 
         # Add dirty rectangle optimization variables
-        self.dirty_rects = []  # List of rectangles that need updating
         self.last_camera_pos = (0, 0)  # Track last camera position
         self.visible_area = None  # Current visible area rectangle
         self.background_surface = pygame.Surface((self.screen_width, self.screen_height))
         self.background_surface.fill((0, 0, 0))  # Black background
+
+    def create_panels(self):
+        # Create panels for the game
+        panel_width = 200
+        panel_height = 50
+        panel_spacing = 20
+        start_x = (self.screen.get_width() - panel_width) // 2
+        start_y = (self.screen.get_height() - (panel_height * 3 + panel_spacing * 2)) // 2
+
+        # Create a single panel with the game's object collection
+        self.panels = []
+        self.panels.append(Panel(self.screen, self.object_collection))
+
+    def create_object_collections(self):
+        """Create object collections for different sizes"""
+        self.object_collections = []
+        self.object_collections.append(ObjectCollection())  # Small objects
+        self.object_collections.append(ObjectCollection())  # Large objects
+        self.object_collections.append(ObjectCollection())  # Huge objects
 
     def load_map(self, file_path):
         try:
@@ -341,6 +374,16 @@ class Game:
         if event.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
+
+        # First handle cursor state through base class
+        super().handle_events(event)
+
+        # Handle events for panels
+        for panel in self.panels:
+            panel.handle_events(event)
+
+        # Handle events for minimap
+        self.minimap.handle_event(event)
 
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_SPACE:
@@ -788,15 +831,14 @@ class Game:
 
         # Update only the dirty areas of the screen
         if self.dirty_rects:
-            # Add cursor's last position to dirty rects if it exists
-            if self.cursor_manager.last_rect:
-                self.dirty_rects.append(self.cursor_manager.last_rect)
             pygame.display.update(self.dirty_rects)
         else:
             pygame.display.flip()
 
-        # Render cursor last to ensure it's always on top
-        self.cursor_manager.render(self.screen)
+        # IMPORTANT: Call parent's render method to ensure cursor is rendered on top of everything
+        # This is required because BaseScreen handles cursor rendering and we want the cursor
+        # to always be visible on top of all game elements
+        super().render()
 
     def update_minimap(self):
         # Clear the minimap surface

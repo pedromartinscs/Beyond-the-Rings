@@ -1,5 +1,6 @@
 import pygame
 import math
+from typing import Tuple
 
 class Button:
     def __init__(self, x, y, number, spacing, width, height, text, action=None, image_path=None, glow_image_path=None):
@@ -88,8 +89,18 @@ class Button:
         # Draw the button text on top of the image (if desired)
         screen.blit(self.text_surface, self.text_rect)
 
-    def is_clicked(self):
-        mouse_pos = pygame.mouse.get_pos()
+    def is_clicked(self, mouse_pos: Tuple[int, int] = None) -> bool:
+        """
+        Check if the button is clicked.
+        
+        Args:
+            mouse_pos: Optional mouse position tuple (x, y). If None, uses current mouse position.
+            
+        Returns:
+            bool: True if the button is clicked, False otherwise
+        """
+        if mouse_pos is None:
+            mouse_pos = pygame.mouse.get_pos()
         mouse_pressed = pygame.mouse.get_pressed()
         if self.rect.collidepoint(mouse_pos) and mouse_pressed[0]:
             return True

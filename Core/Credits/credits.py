@@ -1,14 +1,13 @@
 import pygame
-import sys
-from Core.UI.cursor_manager import CursorManager
-from ..Menu.button import Button
+from Core.UI.base_screen import BaseScreen
+from Core.UI.button import Button
 
-class CreditsScreen:
+class CreditsScreen(BaseScreen):
     def __init__(self, screen):
-        self.screen = screen
-        self.screen_width = screen.get_width()
+        super().__init__(screen)
         self.screen_height = screen.get_height()
-        self.next_action = None
+        self.screen_width = screen.get_width()
+        self.panel_surface = pygame.Surface((self.screen_width, self.screen_height), pygame.SRCALPHA)
 
         # Load background image based on screen width
         if self.screen_width <= 1024:
@@ -16,32 +15,42 @@ class CreditsScreen:
         else:
             self.background = pygame.image.load("Images/credits_background_x4.jpg")
 
-        # Create the back button
-        self.back_button = Button(
-            x=(self.screen_width - 200) // 2, 
-            y=self.screen_height - 200, 
-            number=1, 
-            spacing=20, 
-            width=200, 
-            height=50, 
-            text="Back", 
-            action=self.go_back,
-            image_path="Images/menu_button.png",
-            glow_image_path="Images/menu_button_glow.png"
-        )
+        # Create back button
+        button_width = 200
+        button_height = 50
+        start_x = (self.screen.get_width() - button_width) // 2
+        start_y = self.screen.get_height() - button_height - 50  # 50 pixels from bottom
+
+        self.back_button = Button(start_x, start_y, 1, 0, button_width, button_height, "Back", self.go_back, "Images/menu_button.png", "Images/menu_button_glow.png")
 
         # Load hover sound effect
-        self.hover_sound = pygame.mixer.Sound("Sounds/hover.wav")  # Replace with your hover sound file
-        self.hovered_button = None  # Initialize to track hover state
-
-        # Initialize cursor manager
-        self.cursor_manager = CursorManager()
+        self.hover_sound = pygame.mixer.Sound("Sounds/hover.wav")
+        self.hovered_button = None
 
     def go_back(self):
-        print("Going back to main menu...")
-        # Code to switch to the main menu, you could return the new screen here (e.g., MainMenu)
-        from Core.Menu.main_menu import MainMenu  # Import here to avoid circular imports
-        return MainMenu(self.screen)  # Return the credits screen to switch to it
+        from Core.Menu.main_menu import MainMenu
+        return MainMenu(self.screen)
+
+    def handle_events(self, event):
+        if event.type == pygame.QUIT:
+            pygame.quit()
+            exit()
+
+        # First handle cursor state through base class
+        super().handle_events(event)
+
+        if event.type == pygame.MOUSEBUTTONDOWN:
+            if self.back_button.is_clicked():
+                self.next_action = self.go_back
+
+        # Handle mouse hover and play sound
+        if event.type == pygame.MOUSEMOTION:
+            if self.back_button.rect.collidepoint(event.pos):
+                if not self.hovered_button:
+                    self.hovered_button = self.back_button
+                    self.hover_sound.play()
+            else:
+                self.hovered_button = None
 
     def draw_background(self):
         # Get the screen dimensions
@@ -57,53 +66,22 @@ class CreditsScreen:
 
         # Scale the image based on the screen ratio
         if screen_ratio > bg_ratio:  # If the screen is wider than the background image
+            # Scale image to fill the width, and add black bars on top and bottom
             new_height = int(screen_width / bg_ratio)
             background_scaled = pygame.transform.scale(self.background, (screen_width, new_height))
+            # Calculate position to center the image vertically
             y_offset = (screen_height - new_height) // 2
             self.screen.fill((0, 0, 0))  # Fill the screen with black (bars top and bottom)
             self.screen.blit(background_scaled, (0, y_offset))  # Draw image centered vertically
         else:  # If the screen is taller than the background image
+            # Scale image to fill the height, and add black bars on the sides
             new_width = int(screen_height * bg_ratio)
             background_scaled = pygame.transform.scale(self.background, (new_width, screen_height))
+            # Calculate position to center the image horizontally
             x_offset = (screen_width - new_width) // 2
             self.screen.fill((0, 0, 0))  # Fill the screen with black (bars left and right)
             self.screen.blit(background_scaled, (x_offset, 0))  # Draw image centered horizontally
 
-    def handle_events(self, event):
-        if event.type == pygame.QUIT:
-            pygame.quit()
-            sys.exit()
-
-        # Handle events for buttons (clicking)
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if self.back_button.is_clicked():
-                self.next_action = self.back_button.action
-
-        # Handle mouse hover and play sound for the back button
-        if event.type == pygame.MOUSEMOTION:
-            # Check if the mouse is hovering over the back button
-            if self.back_button.rect.collidepoint(event.pos):
-                if self.hovered_button != self.back_button:
-                    self.hovered_button = self.back_button
-                    self.hover_sound.play()  # Play the hover sound effect
-                self.cursor_manager.set_cursor('hover')
-            else:
-                # If no button is being hovered, reset hovered_button
-                self.hovered_button = None
-                self.cursor_manager.set_cursor('normal')
-
-    def update(self):
-        if self.next_action:
-            next_screen = self.next_action()  # Executes button action and checks if it returns a screen
-            self.next_action = None
-            if next_screen:
-                return next_screen
-
     def render(self):
         self.draw_background()
-
-        # Draw the back button
         self.back_button.draw(self.screen)
-
-        # Render cursor last to ensure it's always on top
-        self.cursor_manager.render(self.screen)

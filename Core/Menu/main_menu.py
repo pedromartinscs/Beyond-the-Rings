@@ -2,15 +2,15 @@ import pygame
 import sys
 from Core.Credits.credits import CreditsScreen
 from Core.Game.game import Game
-from Core.UI.cursor_manager import CursorManager
-from .button import Button
+from Core.UI.base_screen import BaseScreen
+from ..UI.button import Button
 
 
 # Define the main menu class
-class MainMenu:
+class MainMenu(BaseScreen):
     # region Constructor
     def __init__(self, screen):
-        self.screen = screen
+        super().__init__(screen)
         self.screen_height = screen.get_height()
         self.screen_width = screen.get_width()
         self.buttons = []
@@ -34,9 +34,6 @@ class MainMenu:
         # Load hover sound effect
         self.hover_sound = pygame.mixer.Sound("Sounds/hover.wav")  # Replace with your hover sound file
         self.hovered_button = None  # Initialize hovered_button to track mouse hover
-
-        # Initialize cursor manager
-        self.cursor_manager = CursorManager()
 
     # endregion
 
@@ -109,6 +106,9 @@ class MainMenu:
             pygame.quit()
             exit()
 
+        # First handle cursor state through base class
+        super().handle_events(event)
+
         if event.type == pygame.MOUSEBUTTONDOWN:
             # Handle events for buttons (clicking)
             for button in self.buttons:
@@ -121,7 +121,6 @@ class MainMenu:
             for button in self.buttons:
                 if button.rect.collidepoint(event.pos):  # If the mouse is over the button
                     hovered_button = button
-                    self.cursor_manager.set_cursor('hover')
                     break
 
             # If the hovered button is different from the previous one, play the hover sound
@@ -130,7 +129,6 @@ class MainMenu:
                 self.hover_sound.play()  # Play the hover sound effect
             elif not hovered_button:  # Reset the hovered button when no button is hovered
                 self.hovered_button = None
-                self.cursor_manager.set_cursor('normal')
 
     def update(self):
         if self.next_action:
@@ -140,12 +138,18 @@ class MainMenu:
                 return next_screen
 
     def render(self):
+        # Draw the background
         self.draw_background()
-
-        # Draw all the buttons
+        
+        # Draw the buttons
         for button in self.buttons:
             button.draw(self.screen)
+        
+        # Update the display
+        pygame.display.flip()
 
-        # Render cursor last to ensure it's always on top
-        self.cursor_manager.render(self.screen)
+        # IMPORTANT: Call parent's render method to ensure cursor is rendered on top of everything
+        # This is required because BaseScreen handles cursor rendering and we want the cursor
+        # to always be visible on top of all menu elements
+        super().render()
     # endregion

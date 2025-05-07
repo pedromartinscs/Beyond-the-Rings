@@ -4,9 +4,8 @@ import os
 import tkinter as tk
 from tkinter import filedialog
 import json
-import sys
-sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__)))))
-from Core.Menu.button import Button
+from typing import Dict, List, Optional, Tuple
+from Core.UI.button import Button
 
 class ObjectManager:
     def __init__(self, screen):
