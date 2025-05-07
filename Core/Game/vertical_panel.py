@@ -212,12 +212,8 @@ class VerticalPanel:
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
             
-            # Check handle click
-            handle_rect = pygame.Rect(
-                self.current_x - self.handle_width, self.y,
-                self.handle_width, self.height
-            )
-            if handle_rect.collidepoint(mouse_pos):
+            # Use is_handle_clicked method for handle click detection
+            if self.is_handle_clicked(mouse_pos):
                 self.toggle()
                 return "panel_toggled"
                 
@@ -282,7 +278,5 @@ class VerticalPanel:
         # Handle is attached to the right side of the panel
         handle_x = self.panel_rect.width + self.current_x - self.handle_width
         handle_rect = pygame.Rect(handle_x, self.y, self.handle_width, self.height)
-        
-        print(f"Handle rect: {handle_rect}, Handle width: {self.handle_width}, Handle Current x: {self.current_x}, Click pos: {pos}, Panel state: {'open' if self.is_open else 'closed'}")
         
         return handle_rect.collidepoint(pos) 
