@@ -34,6 +34,10 @@ class Game(BaseScreen):
         self.grid_cell_size = 128  # Size of each grid cell (4 tiles)
         self.spatial_grid = {}  # Dictionary to store objects by grid cell
 
+        # Initialize attack state tracking
+        self.active_attacks = {}  # Dictionary to track active attacks: {attacker_id: {'target_id': target_id, 'last_attack_time': time, 'cooldown': cooldown}}
+        self.attack_cooldown = 1000  # Attack cooldown in milliseconds
+
         # Initialize panels
         self.panels = []
         self.create_panels()
@@ -424,15 +428,13 @@ class Game(BaseScreen):
             pygame.quit()
             sys.exit()
 
-        # First handle cursor state through base class
-        super().handle_events(event)
-
         # Handle events for horizontal panel first
         result = self.panel.handle_events(event)
-        if result == "panel_toggled":
-            # Panel was toggled, no need to process further
-            return
-                
+        if result:
+            if result == "panel_toggled":
+                # Panel was toggled, no need to process further
+                return
+
         # Handle events for vertical panel
         result = self.vertical_panel.handle_events(event)
         if result == "panel_toggled":
@@ -442,9 +444,20 @@ class Game(BaseScreen):
         # Handle events for minimap
         self.minimap.handle_event(event)
 
+        # Track cursor state during targeting
+        if self.panel.is_targeting:
+            self.cursor_manager.set_cursor("targeting")
+        elif event.type == pygame.MOUSEMOTION:
+            # Only update cursor to normal if not in targeting mode
+            self.cursor_manager.set_cursor("normal")
+
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
             
+            # Check for panel button clicks first
+            if self.panel.is_open and self.panel.handle_events(event):
+                return
+
             # Then check if minimap is clicked
             if event.button == 1:  # Left click
                 if self.is_minimap_clicked(mouse_pos):
@@ -462,14 +475,20 @@ class Game(BaseScreen):
                     if objects_at_tile:
                         # If there are objects at this tile, select the one with highest z-index
                         target_object = max(objects_at_tile, key=lambda x: x['z_index'])
-                        self.panel.handle_target_selection(target_object)
+                        print(f"[DEBUG] handle_events: Selected target object: {target_object['type']} {target_object['id']}")
+                        attack_result = self.panel.handle_target_selection(target_object)
+                        if attack_result and attack_result['action'] == 'attack':
+                            self.handle_attack_command(attack_result)
                     else:
                         # If no objects at this tile, check for huge objects at adjacent tiles
                         huge_objects = self.get_huge_objects_at_adjacent_tiles(tile_x, tile_y)
                         if huge_objects:
                             # Select the huge object with highest z-index
                             target_object = max(huge_objects, key=lambda x: x['z_index'])
-                            self.panel.handle_target_selection(target_object)
+                            print(f"[DEBUG] handle_events: Selected huge target object: {target_object['type']} {target_object['id']}")
+                            attack_result = self.panel.handle_target_selection(target_object)
+                            if attack_result and attack_result['action'] == 'attack':
+                                self.handle_attack_command(attack_result)
                 # Finally check for object selection, but only if not clicking on panels
                 elif not self.is_click_on_panels(mouse_pos):
                     self.selected_object = None  # Clear current selection
@@ -512,6 +531,7 @@ class Game(BaseScreen):
                 # Cancel targeting mode if right clicked
                 if self.panel.is_targeting:
                     self.panel.cancel_targeting()
+                    self.cursor_manager.set_cursor("normal")
 
         elif event.type == pygame.MOUSEBUTTONUP:
             self.is_dragging_minimap = False
@@ -577,56 +597,97 @@ class Game(BaseScreen):
 
     def update(self):
         # Get mouse position once
-        mouse_x, mouse_y = pygame.mouse.get_pos()
-
-        # Define the edge detection area and speed
-        edge_area = 10  # Pixels from the edge to start moving
-        base_speed = self.camera_speed
-        edge_speed = base_speed * 2.5  # Increased multiplier from 2 to 2.5 for more responsive edge movement
-
-        # Calculate camera movement
-        dx = dy = 0
-
-        # Horizontal movement with optimized checks
-        if mouse_x < edge_area:
-            dx = -edge_speed
-        elif mouse_x > self.screen_width - edge_area:
-            dx = edge_speed
-        elif mouse_x < edge_area * 2:
-            dx = -base_speed
-        elif mouse_x > self.screen_width - edge_area * 2:
-            dx = base_speed
-
-        # Vertical movement with optimized checks
-        if mouse_y < edge_area:
-            dy = -edge_speed
-        elif mouse_y > self.screen_height - edge_area:
-            dy = edge_speed
-        elif mouse_y < edge_area * 2:
-            dy = -base_speed
-        elif mouse_y > self.screen_height - edge_area * 2:
-            dy = edge_speed
-
-        # Update camera position if movement is needed
-        if dx != 0 or dy != 0:
-            old_camera_x = self.camera_x
-            old_camera_y = self.camera_y
+        mouse_pos = pygame.mouse.get_pos()
+        
+        # Optimize camera movement with edge detection
+        edge_area = 50  # pixels from edge to trigger camera movement
+        move_speed = 5  # pixels per frame
+        
+        # Check horizontal movement
+        if mouse_pos[0] < edge_area:
+            self.camera_x = max(0, self.camera_x - move_speed)
+        elif mouse_pos[0] > self.screen.get_width() - edge_area:
+            self.camera_x = min(self.map_width - self.screen.get_width(), self.camera_x + move_speed)
             
-            # Calculate new camera position
-            new_camera_x = max(0, min(self.camera_x + dx, 
-                                    self.map_width * self.tile_size - self.camera_width))
-            new_camera_y = max(0, min(self.camera_y + dy,
-                                    self.map_height * self.tile_size - self.camera_height))
+        # Check vertical movement
+        if mouse_pos[1] < edge_area:
+            self.camera_y = max(0, self.camera_y - move_speed)
+        elif mouse_pos[1] > self.screen.get_height() - edge_area:
+            self.camera_y = min(self.map_height - self.screen.get_height(), self.camera_y + move_speed)
+        
+        # Process active attacks
+        for attack in list(self.active_attacks.items()):
+            attacker_id = attack[0]
+            attack_data = attack[1]
+            target_id = attack_data['target_id']
             
-            # Only update if position actually changed
-            if new_camera_x != old_camera_x or new_camera_y != old_camera_y:
-                self.camera_x = new_camera_x
-                self.camera_y = new_camera_y
-                self.camera_moved = True
+            # Get attacker and target objects
+            attacker = None
+            target = None
+            
+            # Find attacker
+            for obj in self.objects:
+                if obj['id'] == attacker_id:
+                    attacker = obj
+                    break
+                    
+            # Find target
+            for obj in self.objects:
+                if obj['id'] == target_id:
+                    target = obj
+                    break
+            
+            if attacker and target:
+                # Get attacker metadata
+                attacker_metadata = self.object_collection.get_object_metadata(attacker['type'], attacker['id'])
+                if not attacker_metadata:
+                    print(f"[DEBUG] update: No metadata found for attacker {attacker_id}")
+                    del self.active_attacks[attacker_id]
+                    continue
+                    
+                # Get attack range from properties
+                properties = attacker_metadata.get('properties', {})
+                attack_range = properties.get('attack_range', 0)
                 
-                # Update visible area immediately when camera moves
-                self.update_visible_area()
-                self.update_visible_objects()
+                # Calculate distance in tiles
+                dx = target['x'] - attacker['x']
+                dy = target['y'] - attacker['y']
+                distance = (dx * dx + dy * dy) ** 0.5
+                
+                print(f"[DEBUG] update: Distance between {attacker_id} and {target_id} = {distance:.1f} tiles, range = {attack_range} tiles")
+                
+                # Check if target is still in range
+                if distance > attack_range:
+                    print(f"[DEBUG] update: Target {target_id} out of range for attacker {attacker_id}")
+                    # Stop the attack
+                    self.animation_manager.set_animation_state(attacker_id, "static")
+                    del self.active_attacks[attacker_id]
+                    continue
+                
+                # Update attack cooldown
+                current_time = pygame.time.get_ticks()
+                if current_time - attack_data['last_attack_time'] >= attack_data['cooldown']:
+                    # Perform attack
+                    self.animation_manager.set_animation_state(attacker_id, "fire")
+                    attack_data['last_attack_time'] = current_time
+                    
+                    # Calculate angle for projectile
+                    angle = self.calculate_angle(attacker['x'], attacker['y'], target['x'], target['y'])
+                    nearest_direction = self.get_nearest_direction(angle, attacker_metadata['visuals']['directions'])
+                    
+                    # Create projectile
+                    projectile = {
+                        'type': 'projectile',
+                        'id': len(self.objects) + 1,
+                        'x': attacker['x'],
+                        'y': attacker['y'],
+                        'target_x': target['x'],
+                        'target_y': target['y'],
+                        'speed': 0.1,
+                        'damage': properties.get('damage', 0),
+                        'direction': nearest_direction
+                    }
+                    self.objects.append(projectile)
 
         # Handle next_action and check for screen transitions
         next_screen = self.handle_next_action()
@@ -959,3 +1020,74 @@ class Game(BaseScreen):
         # Find the closest direction by comparing the absolute difference
         closest = min(directions, key=lambda x: min(abs(x - angle), 360 - abs(x - angle)))
         return closest
+
+    def handle_attack_command(self, attack_result):
+        """Handle an attack command from the panel"""
+        attacker = attack_result['attacker']
+        target = attack_result['target']
+        
+        if attack_result['in_range']:
+            # Start attack immediately
+            self.active_attacks[attacker['id']] = {
+                'target_id': target['id'],  # Store target ID instead of target object
+                'last_attack_time': pygame.time.get_ticks(),
+                'cooldown': 1000  # Default cooldown in milliseconds
+            }
+            # Set attacker's animation state to 'fire'
+            self.animation_manager.set_animation_state(attacker['id'], 'fire')
+        elif attack_result['is_unit']:
+            # TODO: Handle unit movement towards target
+            pass
+        else:
+            # Building can't reach target, ignore attack
+            pass
+
+    def handle_target_selection(self, target_object):
+        """Handle target selection for attack"""
+        print("[DEBUG] handle_target_selection: Starting target selection")
+        if not self.attacker:
+            print("[DEBUG] handle_target_selection: No attacker set")
+            return None
+            
+        print(f"[DEBUG] handle_target_selection: Processing attack from {self.attacker['type']} {self.attacker['id']} to {target_object['type']} {target_object['id']}")
+        
+        # Calculate distance in tiles
+        dx = target_object['x'] - self.attacker['x']
+        dy = target_object['y'] - self.attacker['y']
+        distance = (dx * dx + dy * dy) ** 0.5
+        
+        print(f"[DEBUG] handle_target_selection: Raw coordinates - Attacker: ({self.attacker['x']}, {self.attacker['y']}), Target: ({target_object['x']}, {target_object['y']})")
+        print(f"[DEBUG] handle_target_selection: Distance = {distance} tiles")
+        
+        # Get attacker's metadata
+        metadata = self.object_collection.get_object_metadata(self.attacker['type'], self.attacker['id'])
+        print(f"[DEBUG] handle_target_selection: Metadata = {metadata}")
+        
+        if not metadata:
+            print("[DEBUG] handle_target_selection: No metadata found for attacker")
+            return None
+            
+        properties = metadata.get('properties', {})
+        print(f"[DEBUG] handle_target_selection: Properties = {properties}")
+        
+        attack_range = properties.get('attack_range', 0)
+        print(f"[DEBUG] handle_target_selection: Attack range = {attack_range}")
+        
+        if distance <= attack_range:
+            print("[DEBUG] handle_target_selection: Target in range")
+            return {
+                'action': 'attack',
+                'attacker': self.attacker,
+                'target': target_object,
+                'in_range': True,
+                'is_unit': properties.get('is_unit', False)
+            }
+        else:
+            print(f"[DEBUG] handle_target_selection: Target out of range (distance: {distance}, range: {attack_range})")
+            return {
+                'action': 'attack',
+                'attacker': self.attacker,
+                'target': target_object,
+                'in_range': False,
+                'is_unit': properties.get('is_unit', False)
+            }

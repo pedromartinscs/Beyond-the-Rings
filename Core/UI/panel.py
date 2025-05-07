@@ -23,6 +23,7 @@ class Panel:
         self.is_targeting = False
         self.current_action = None
         self.attacker = None
+        self.selected_object = None  # Add selected_object attribute
         
         # Get cursor manager instance
         self.cursor_manager = CursorManager()
@@ -157,14 +158,19 @@ class Panel:
         self.description_boxes = []
         
         if not selected_object:
+            print("[DEBUG] update_buttons_for_object: No object selected")
             # If no object is selected, don't show any buttons
             return
             
         # Get object metadata
         metadata = self.object_collection.get_object_metadata(selected_object['type'], selected_object['id'])
         if not metadata or 'buttons' not in metadata or not metadata['buttons']:
+            print(f"[DEBUG] update_buttons_for_object: No buttons found in metadata for {selected_object['type']} {selected_object['id']}")
             # If no buttons found in metadata, don't show any buttons
             return
+            
+        print(f"[DEBUG] update_buttons_for_object: Creating buttons for {selected_object['type']} {selected_object['id']}")
+        print(f"[DEBUG] update_buttons_for_object: Found {len(metadata['buttons'])} buttons in metadata")
             
         # Button dimensions and layout
         button_width = 32
@@ -189,6 +195,8 @@ class Panel:
         start_x = (self.middle_area_width - (actual_cols * (button_width + box_width + spacing_x) - spacing_x)) // 2
         start_y = 30
         
+        print(f"[DEBUG] update_buttons_for_object: Button layout - start_x={start_x}, start_y={start_y}, box_width={box_width}")
+        
         # Create fonts for title and description
         self.title_font = pygame.font.Font(None, 16)  # Bold font for title
         self.description_font = pygame.font.Font(None, 14)  # Regular font for description
@@ -204,6 +212,8 @@ class Panel:
             row = i // actual_cols
             x = start_x + col * (button_width + spacing_x + box_width)
             y = start_y + row * (button_height + spacing_y)
+            
+            print(f"[DEBUG] update_buttons_for_object: Creating button {i} at ({x}, {y}) for action {button_data['action']}")
             
             # Try to load action-specific button images
             action = button_data['action']
@@ -236,6 +246,8 @@ class Panel:
                 'lines': [],  # Will store wrapped description lines
                 'is_wrapped': False  # Flag to track if description was wrapped
             }
+            
+            print(f"[DEBUG] update_buttons_for_object: Created button and box for action {action}")
             
             # Create description surface
             box['surface'] = pygame.Surface((box_width, button_height), pygame.SRCALPHA)
@@ -383,18 +395,35 @@ class Panel:
                 
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
+            print(f"[DEBUG] handle_events: Mouse click at {mouse_pos}")
             
             # Use is_handle_clicked method for handle click detection
             if self.is_handle_clicked(mouse_pos):
+                print("[DEBUG] handle_events: Handle clicked")
                 self.toggle()
                 return "panel_toggled"
                 
             # Check button clicks
-            for button in self.middle_buttons:
-                if button.is_clicked(mouse_pos):
-                    return f"button_{self.middle_buttons.index(button)}_clicked"
+            for i, button in enumerate(self.middle_buttons):
+                # Calculate button position relative to panel
+                middle_x = self.middle_area_pos[0]
+                middle_y = self.current_y + self.middle_area_pos[1]
+                adjusted_x = middle_x + button.rect.x
+                adjusted_y = middle_y + button.rect.y
+                print(f"[DEBUG] handle_events: Checking button {i} at adjusted position ({adjusted_x}, {adjusted_y})")
+                
+                # Create a temporary rect for click detection
+                temp_rect = pygame.Rect(adjusted_x, adjusted_y, button.rect.width, button.rect.height)
+                if temp_rect.collidepoint(mouse_pos):
+                    print(f"[DEBUG] handle_events: Button {i} clicked at adjusted position")
+                    # Get the corresponding box for this button
+                    box = next((b for b in self.description_boxes if b['button'] == button), None)
+                    if box:
+                        print(f"[DEBUG] handle_events: Found box with action: {box.get('action', 'no action')}")
+                        self.handle_button_click(box)
+                    return f"button_{i}_clicked"
                     
-        return None 
+        return None
 
     def create_cached_surfaces(self):
         """Create and cache the static parts of the panel"""
@@ -438,12 +467,22 @@ class Panel:
     def handle_button_click(self, box):
         """Handle a button click in the panel"""
         if not box or 'action' not in box:
+            print("[DEBUG] handle_button_click: No box or action found")
             return
             
         action = box['action']
+        print(f"[DEBUG] handle_button_click: Action = {action}")
+        
         if action == 'attack':
+            if not self.selected_object:
+                print("[DEBUG] handle_button_click: No object selected for attack")
+                return
+                
+            print("[DEBUG] handle_button_click: Starting attack targeting")
             self.is_targeting = True
             self.current_action = 'attack'
+            self.attacker = self.selected_object  # Store the attacker object
+            print(f"[DEBUG] handle_button_click: Attacker set to {self.attacker['type']} {self.attacker['id']}")
             self.cursor_manager.set_cursor('aim')
         elif action == 'build':
             self.is_targeting = True
@@ -461,24 +500,72 @@ class Panel:
 
     def handle_target_selection(self, target_object):
         """Handle target selection during targeting mode"""
-        if not self.is_targeting or not target_object:
+        print("[DEBUG] handle_target_selection: Starting target selection")
+        if not self.is_targeting or not target_object or not self.attacker:
+            print(f"[DEBUG] handle_target_selection: Invalid state - is_targeting={self.is_targeting}, has_target={bool(target_object)}, has_attacker={bool(self.attacker)}")
             return
             
         if self.current_action == 'attack':
-            # Handle attack action
-            if self.attacker and target_object:
-                # Perform attack logic here
-                print(f"Attacking {target_object['type']} {target_object['id']} with {self.attacker['type']} {self.attacker['id']}")
+            print(f"[DEBUG] handle_target_selection: Processing attack from {self.attacker['type']} {self.attacker['id']} to {target_object['type']} {target_object['id']}")
+            # Calculate distance between attacker and target
+            dx = target_object['x'] - self.attacker['x']
+            dy = target_object['y'] - self.attacker['y']
+            distance = (dx * dx + dy * dy) ** 0.5  # Euclidean distance
+            print(f"[DEBUG] handle_target_selection: Distance = {distance}")
+            
+            # Get attacker's range from metadata
+            metadata = self.object_collection.get_object_metadata(self.attacker['type'], self.attacker['id'])
+            print(f"[DEBUG] handle_target_selection: Metadata = {metadata}")
+            properties = metadata.get('properties', {}) if metadata else {}
+            print(f"[DEBUG] handle_target_selection: Properties = {properties}")
+            attack_range = properties.get('attack_range', 0)
+            print(f"[DEBUG] handle_target_selection: Attack range = {attack_range}")
+            
+            if distance <= attack_range:
+                # Target is in range, start attack
+                result = {
+                    'action': 'attack',
+                    'attacker': self.attacker,
+                    'target': target_object,
+                    'in_range': True
+                }
+                # Only cancel targeting if attack was successful
+                self.cancel_targeting()
+                return result
+            else:
+                # Target is out of range
+                if metadata and metadata.get('is_unit', False):
+                    # TODO: Handle unit movement towards target
+                    return {
+                        'action': 'attack',
+                        'attacker': self.attacker,
+                        'target': target_object,
+                        'in_range': False,
+                        'is_unit': True
+                    }
+                else:
+                    # Building can't move, ignore attack
+                    return {
+                        'action': 'attack',
+                        'attacker': self.attacker,
+                        'target': target_object,
+                        'in_range': False,
+                        'is_unit': False
+                    }
                 
         elif self.current_action == 'build':
             # Handle build action
-            print(f"Building at {target_object['x']}, {target_object['y']}")
-            
-        # Reset targeting state
-        self.cancel_targeting()
+            result = {
+                'action': 'build',
+                'position': (target_object['x'], target_object['y'])
+            }
+            # Cancel targeting after successful build
+            self.cancel_targeting()
+            return result
 
     def set_selected_object(self, obj):
         """Set the currently selected object and update panel accordingly"""
+        self.selected_object = obj  # Store the selected object
         if obj:
             self.object_name_text = obj.get('name', 'Unknown')
             self.object_name_surface = self.object_name_font.render(self.object_name_text, True, self.object_name_color)
