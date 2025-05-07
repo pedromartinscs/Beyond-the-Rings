@@ -97,25 +97,28 @@ class VerticalPanel:
         # Create menu buttons with proper actions
         self.buttons = [
             Button(x, y, 0, button_config['spacing'], button_config['width'], button_config['height'], 
-                  "Main Menu", self.return_to_menu, default_button, default_button_hover),
+                  "Main Menu", self.return_to_menu, default_button, default_button_hover, glow_behind=True),
             Button(x, y, 1, button_config['spacing'], button_config['width'], button_config['height'], 
-                  "Options", self.show_options, default_button, default_button_hover),
+                  "Options", self.show_options, default_button, default_button_hover, glow_behind=True),
             Button(x, y, 2, button_config['spacing'], button_config['width'], button_config['height'], 
-                  "Quit Game", self.quit_game, default_button, default_button_hover)
+                  "Quit Game", self.quit_game, default_button, default_button_hover, glow_behind=True)
         ]
 
     def return_to_menu(self) -> None:
         """Return to the main menu."""
+        print("Returning to main menu...")  # Debug print
         if self.game:
             self.game.next_action = "main_menu"
 
     def show_options(self) -> None:
         """Show the options menu."""
+        print("Showing options...")  # Debug print
         if self.game:
             self.game.next_action = "options"
 
     def quit_game(self) -> None:
         """Quit the game."""
+        print("Quitting game...")  # Debug print
         if self.game:
             self.game.next_action = "quit"
 
@@ -207,10 +210,41 @@ class VerticalPanel:
                 self.toggle()
                 return "panel_toggled"
                 
-            # Check button clicks
-            for button in self.buttons:
-                if button.is_clicked(mouse_pos):
-                    return f"button_{self.buttons.index(button)}_clicked"
+            # Check button clicks - adjust mouse position relative to panel
+            if self.is_open or self.current_x != self.target_x:
+                rel_mouse_x = mouse_pos[0] - self.current_x
+                rel_mouse_y = mouse_pos[1] - self.y
+                rel_mouse_pos = (rel_mouse_x, rel_mouse_y)
+                
+                for button in self.buttons:
+                    if button.rect.collidepoint(rel_mouse_pos):
+                        # Execute the button's action
+                        if button.action:
+                            button.action()
+                        return f"button_{self.buttons.index(button)}_clicked"
+                    
+        # Handle hover sound and state
+        if event.type == pygame.MOUSEMOTION:
+            mouse_pos = pygame.mouse.get_pos()
+            
+            # Only check for hover if panel is visible
+            if self.is_open or self.current_x != self.target_x:
+                rel_mouse_x = mouse_pos[0] - self.current_x
+                rel_mouse_y = mouse_pos[1] - self.y
+                rel_mouse_pos = (rel_mouse_x, rel_mouse_y)
+                
+                for button in self.buttons:
+                    if button.rect.collidepoint(rel_mouse_pos):
+                        if not button.is_hovered:  # Only play sound when first hovering
+                            if hasattr(self, 'hover_sound'):
+                                self.hover_sound.play()
+                        button.is_hovered = True
+                    else:
+                        button.is_hovered = False
+            else:
+                # Reset hover state when panel is not visible
+                for button in self.buttons:
+                    button.is_hovered = False
                     
         return None
 

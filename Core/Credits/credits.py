@@ -21,7 +21,7 @@ class CreditsScreen(BaseScreen):
         start_x = (self.screen.get_width() - button_width) // 2
         start_y = self.screen.get_height() - button_height - 50  # 50 pixels from bottom
 
-        self.back_button = Button(start_x, start_y, 1, 0, button_width, button_height, "Back", self.go_back, "Images/menu_button.png", "Images/menu_button_glow.png")
+        self.back_button = Button(start_x, start_y, 1, 0, button_width, button_height, "Back", self.go_back, "Images/menu_button.png", "Images/menu_button_glow.png", glow_behind=True)
 
         # Load hover sound effect
         self.hover_sound = pygame.mixer.Sound("Sounds/hover.wav")
@@ -85,3 +85,5 @@ class CreditsScreen(BaseScreen):
     def render(self):
         self.draw_background()
         self.back_button.draw(self.screen)
+        # Call parent's render method to ensure cursor is rendered
+        super().render()

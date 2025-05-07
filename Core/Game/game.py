@@ -10,6 +10,7 @@ from Core.Game.object_collection import ObjectCollection
 from Core.UI.cursor_manager import CursorManager
 from Core.Game.animation_manager import AnimationManager
 from Core.Game.vertical_panel import VerticalPanel
+from typing import Optional, Any
 
 class Game(BaseScreen):
     def __init__(self, screen):
@@ -509,6 +510,26 @@ class Game(BaseScreen):
             self.camera_height
         )
 
+    def handle_next_action(self) -> Optional[Any]:
+        """Handle the next_action string and return the appropriate screen or None."""
+        if not self.next_action:
+            return None
+            
+        action = self.next_action
+        self.next_action = None
+        
+        if action == "main_menu":
+            from Core.Menu.main_menu import MainMenu
+            return MainMenu(self.screen)
+        elif action == "options":
+            from Core.Options.options import OptionsScreen
+            return OptionsScreen(self.screen)
+        elif action == "quit":
+            pygame.quit()
+            sys.exit()
+            
+        return None
+
     def update(self):
         # Get mouse position once
         mouse_x, mouse_y = pygame.mouse.get_pos()
@@ -558,10 +579,22 @@ class Game(BaseScreen):
                 self.camera_y = new_camera_y
                 self.camera_moved = True
 
-        # Update panel animations and check for screen transitions
-        next_screen = self.vertical_panel.update()
+        # Handle next_action and check for screen transitions
+        next_screen = self.handle_next_action()
         if next_screen:
             return next_screen
+
+        # Update panel animations
+        self.vertical_panel.update()
+
+        # Update visible area
+        self.update_visible_area()
+
+        # Update visible objects
+        self.update_visible_objects()
+
+        # Update the map surface
+        self.render()
 
     def update_visible_objects(self):
         """Update the list of visible objects only when camera moves significantly"""
