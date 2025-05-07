@@ -72,6 +72,11 @@ class Panel:
         self.right_area = pygame.Surface((self.right_area_width, self.area_height))
         self.right_area.fill(COLORS['black'])
 
+        # Load panel images for selected object display
+        self.horizontal_left_area = pygame.image.load("Images/game_menu_horizontal_left_area.png").convert_alpha()
+        self.default_selection = pygame.image.load("Images/default_selection.png").convert_alpha()
+        self.selected_object_image = None  # Will store the selected object's image
+
         # Calculate area positions
         self.left_area_pos = (self.margin, self.margin - 5)
         self.middle_area_pos = (self.left_area_pos[0] + self.left_area_size + self.margin, self.margin + 5)
@@ -542,11 +547,22 @@ class Panel:
             self.object_name_text = obj.get('name', 'Unknown')
             self.object_name_surface = self.object_name_font.render(self.object_name_text, True, self.object_name_color)
             self.update_buttons_for_object(obj)
+            
+            # Try to load the object's image
+            try:
+                image_path = os.path.join("Images", f"{obj['type']}{obj['id']:05d}.png")
+                if os.path.exists(image_path):
+                    self.selected_object_image = pygame.image.load(image_path).convert_alpha()
+                else:
+                    self.selected_object_image = self.default_selection
+            except:
+                self.selected_object_image = self.default_selection
         else:
             self.object_name_text = "No selection"
             self.object_name_surface = self.object_name_font.render(self.object_name_text, True, self.object_name_color)
             self.middle_buttons = []
             self.description_boxes = []
+            self.selected_object_image = self.default_selection
 
     def render_text(self):
         """Render text elements of the panel"""

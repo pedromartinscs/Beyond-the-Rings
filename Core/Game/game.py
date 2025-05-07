@@ -66,11 +66,6 @@ class Game(BaseScreen):
         self.selection_ring_radius = 20  # Base radius for small/large objects
         self.selection_ring_huge_radius = 40  # Double radius for huge objects
 
-        # Load panel images
-        self.horizontal_left_area = pygame.image.load("Images/game_menu_horizontal_left_area.png").convert_alpha()
-        self.default_selection = pygame.image.load("Images/default_selection.png").convert_alpha()
-        self.selected_object_image = None  # Will store the selected object's image
-
         # Load and cache tile images
         self.tile_cache = {}  # Cache for tile images
         self.tiles = []
@@ -469,12 +464,13 @@ class Game(BaseScreen):
                     # Get tile coordinates from mouse position
                     tile_x, tile_y = self.get_tile_from_screen_pos(mouse_pos[0], mouse_pos[1])
                     
-                    # Get objects at the clicked tile
+                    # First check for objects at the clicked tile
                     objects_at_tile = self.get_objects_at_tile(tile_x, tile_y)
                     
                     if objects_at_tile:
                         # If there are objects at this tile, select the one with highest z-index
                         target_object = max(objects_at_tile, key=lambda x: x['z_index'])
+                        # Handle the target selection
                         attack_result = self.panel.handle_target_selection(target_object)
                         if attack_result and attack_result['action'] == 'attack':
                             self.handle_attack_command(attack_result)
@@ -484,14 +480,12 @@ class Game(BaseScreen):
                         if huge_objects:
                             # Select the huge object with highest z-index
                             target_object = max(huge_objects, key=lambda x: x['z_index'])
+                            # Handle the target selection
                             attack_result = self.panel.handle_target_selection(target_object)
                             if attack_result and attack_result['action'] == 'attack':
                                 self.handle_attack_command(attack_result)
                 # Finally check for object selection, but only if not clicking on panels
                 elif not self.is_click_on_panels(mouse_pos):
-                    self.selected_object = None  # Clear current selection
-                    self.selected_object_image = None  # Clear selected object image
-                    
                     # Get tile coordinates from mouse position
                     tile_x, tile_y = self.get_tile_from_screen_pos(mouse_pos[0], mouse_pos[1])
                     
@@ -507,24 +501,12 @@ class Game(BaseScreen):
                         if huge_objects:
                             # Select the huge object with highest z-index
                             self.selected_object = max(huge_objects, key=lambda x: x['z_index'])
+                        else:
+                            # No objects found, clear selection
+                            self.selected_object = None
                     
-                    # If we found an object to select, update the selection
-                    if self.selected_object:
-                        # Try to load the object's image from the Images folder
-                        try:
-                            image_path = os.path.join("Images", f"{self.selected_object['type']}{self.selected_object['id']:05d}.png")
-                            if os.path.exists(image_path):
-                                self.selected_object_image = pygame.image.load(image_path).convert_alpha()
-                            else:
-                                self.selected_object_image = self.default_selection
-                        except:
-                            self.selected_object_image = self.default_selection
-                        
-                        # Update the panel with the selected object
-                        self.panel.set_selected_object(self.selected_object)
-                    else:
-                        # Clear the panel if no object is selected
-                        self.panel.set_selected_object(None)
+                    # Update the panel with the selected object
+                    self.panel.set_selected_object(self.selected_object)
             elif event.button == 3:  # Right click
                 # Cancel targeting mode if right clicked
                 if self.panel.is_targeting:
@@ -940,13 +922,13 @@ class Game(BaseScreen):
             left_area_rect.y = self.panel.current_y + self.panel.margin - 5
             
             # Draw the selected object image or default image
-            if self.selected_object_image:
+            if self.panel.selected_object_image:
                 # Scale the image to fit the left area while maintaining aspect ratio
-                img_width, img_height = self.selected_object_image.get_size()
+                img_width, img_height = self.panel.selected_object_image.get_size()
                 scale = min(left_area_rect.width / img_width, left_area_rect.height / img_height)
                 new_width = int(img_width * scale)
                 new_height = int(img_height * scale)
-                scaled_image = pygame.transform.scale(self.selected_object_image, (new_width, new_height))
+                scaled_image = pygame.transform.scale(self.panel.selected_object_image, (new_width, new_height))
                 
                 # Center the image in the left area
                 x = left_area_rect.x + (left_area_rect.width - new_width) // 2
@@ -954,11 +936,11 @@ class Game(BaseScreen):
                 self.screen.blit(scaled_image, (x, y))
             else:
                 # Draw the default selection image
-                self.screen.blit(self.default_selection, left_area_rect)
+                self.screen.blit(self.panel.default_selection, left_area_rect)
             
             # Draw the left area border on top
-            self.screen.blit(self.horizontal_left_area, left_area_rect)
-
+            self.screen.blit(self.panel.horizontal_left_area, left_area_rect)
+            
             # Render panel text after drawing the selected object
             self.panel.render_text()
 
