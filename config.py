@@ -55,7 +55,7 @@ VERTICAL_PANEL = {
     'width': 200,
     'height': 350,
     'handle_width': 20,
-    'animation_speed': 10,
+    'animation_speed': 20,
     'button': {
         'width': 180,
         'height': 40,
@@ -76,7 +76,7 @@ CURSOR_TYPES = {
 
 # Game settings
 TILE_SIZE = 32
-CAMERA_SPEED = 5
+CAMERA_SPEED = 8
 MINIMAP_SIZE = 150
 
 # Colors

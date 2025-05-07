@@ -132,13 +132,17 @@ class Game(BaseScreen):
         self.visible_objects_cache = []
         self.last_camera_x = 0
         self.last_camera_y = 0
-        self.camera_moved = True
+        self.camera_moved = True  # Set to True initially to force first update
 
         # Add dirty rectangle optimization variables
         self.last_camera_pos = (0, 0)  # Track last camera position
         self.visible_area = None  # Current visible area rectangle
         self.background_surface = pygame.Surface((self.screen_width, self.screen_height))
         self.background_surface.fill((0, 0, 0))  # Black background
+
+        # Initialize visible objects for the first frame
+        self.update_visible_area()
+        self.update_visible_objects()
 
     def create_panels(self):
         # Create panels for the game
@@ -536,7 +540,7 @@ class Game(BaseScreen):
         # Define the edge detection area and speed
         edge_area = 10  # Pixels from the edge to start moving
         base_speed = self.camera_speed
-        edge_speed = base_speed * 2  # Double speed at edges
+        edge_speed = base_speed * 2.5  # Increased multiplier from 2 to 2.5 for more responsive edge movement
 
         # Calculate camera movement
         dx = dy = 0
@@ -577,6 +581,10 @@ class Game(BaseScreen):
                 self.camera_x = new_camera_x
                 self.camera_y = new_camera_y
                 self.camera_moved = True
+                
+                # Update visible area immediately when camera moves
+                self.update_visible_area()
+                self.update_visible_objects()
 
         # Handle next_action and check for screen transitions
         next_screen = self.handle_next_action()
@@ -585,12 +593,6 @@ class Game(BaseScreen):
 
         # Update panel animations
         self.vertical_panel.update()
-
-        # Update visible area
-        self.update_visible_area()
-
-        # Update visible objects
-        self.update_visible_objects()
 
         # Update the map surface
         self.render()
@@ -616,6 +618,10 @@ class Game(BaseScreen):
         camera_x = self.camera_x
         camera_y = self.camera_y
         
+        # Pre-calculate screen dimensions for bounds checking
+        screen_width = self.screen_width
+        screen_height = self.screen_height
+        
         for obj in self.objects:
             # Calculate object's world position in pixels
             obj_world_x = obj['x'] * tile_size
@@ -639,11 +645,18 @@ class Game(BaseScreen):
             # Calculate offset for centering
             offset = obj['offset'] - half_tile
             
-            self.visible_objects_cache.append({
-                'obj': obj,
-                'screen_x': obj_screen_x - offset,
-                'screen_y': obj_screen_y - offset
-            })
+            # Final screen position
+            final_x = obj_screen_x - offset
+            final_y = obj_screen_y - offset
+            
+            # Only add objects that are actually visible on screen
+            if (final_x + obj_width > 0 and final_x < screen_width and
+                final_y + obj_height > 0 and final_y < screen_height):
+                self.visible_objects_cache.append({
+                    'obj': obj,
+                    'screen_x': final_x,
+                    'screen_y': final_y
+                })
 
         # Sort visible objects by z-index, then y, then x
         self.visible_objects_cache.sort(key=lambda x: (x['obj']['z_index'], x['obj']['y'], x['obj']['x']))
@@ -659,8 +672,9 @@ class Game(BaseScreen):
         # Add the entire visible area to dirty rects if camera moved
         if self.camera_moved:
             self.dirty_rects.append(pygame.Rect(0, 0, self.screen_width, self.screen_height))
-            # Update visible objects when camera moves
-            self.update_visible_objects()
+        else:
+            # Only update areas that need to be redrawn
+            self.dirty_rects.append(pygame.Rect(0, 0, self.screen_width, self.screen_height))
 
         # Calculate visible area in tiles with extra buffer
         start_tile_x = max(0, int(self.camera_x / self.tile_size - 1))
