@@ -38,7 +38,7 @@ class CursorManager:
         Set the current cursor type.
         
         Args:
-            cursor_type: The type of cursor to display ('normal', 'hover', or 'aim')
+            cursor_type: The type of cursor to display ('normal', 'hover', 'aim' or 'build')
         """
         if cursor_type in self.cursors and cursor_type != self.current_cursor:
             self.current_cursor = cursor_type
@@ -66,9 +66,15 @@ class CursorManager:
         current_pos = pygame.mouse.get_pos()
         screen_width, screen_height = screen.get_size()
         
-        # Calculate cursor position (centered on mouse)
-        cursor_x = current_pos[0] - self.cursor_size // 2
-        cursor_y = current_pos[1] - self.cursor_size // 2
+        # Calculate cursor position based on cursor type
+        if self.current_cursor in ['normal', 'hover']:
+            # Offset by 16 pixels right and down for normal and hover cursors
+            cursor_x = current_pos[0]
+            cursor_y = current_pos[1]
+        else:
+            # Center for aim and build cursors
+            cursor_x = current_pos[0] - self.cursor_size // 2
+            cursor_y = current_pos[1] - self.cursor_size // 2
         
         # Clamp cursor position to screen boundaries
         cursor_x = max(0, min(cursor_x, screen_width - self.cursor_size))

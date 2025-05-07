@@ -27,16 +27,11 @@ class VerticalPanel:
         self.height = VERTICAL_PANEL['height']
         self.handle_width = VERTICAL_PANEL['handle_width']
         self.animation_speed = VERTICAL_PANEL['animation_speed']
-        self.glow_speed = VERTICAL_PANEL['glow_speed']
-        self.min_alpha = VERTICAL_PANEL['min_alpha']
-        self.max_alpha = VERTICAL_PANEL['max_alpha']
         
         # Panel state
         self.is_open = False
         self.target_x = -self.width  # Start off-screen to the left
         self.current_x = -self.width  # Start off-screen to the left
-        self.alpha = self.min_alpha
-        self.alpha_increasing = True
         
         # Calculate vertical position to center the panel, but 20px higher
         screen_height = screen.get_height()
@@ -96,8 +91,8 @@ class VerticalPanel:
         y = button_config['start_y']
         
         # Default button images
-        default_button = "Images/tiny_button_basic.png"
-        default_button_hover = "Images/tiny_button_basic_hover.png"
+        default_button = "Images/menu_button.png"
+        default_button_hover = "Images/menu_button_glow.png"
         
         # Create menu buttons with proper actions
         self.buttons = [
@@ -146,16 +141,6 @@ class VerticalPanel:
             self.current_x = min(self.current_x + self.animation_speed, self.target_x)
         elif self.current_x > self.target_x:
             self.current_x = max(self.current_x - self.animation_speed, self.target_x)
-            
-        # Update glow effect
-        if self.alpha_increasing:
-            self.alpha = min(self.alpha + self.glow_speed, self.max_alpha)
-            if self.alpha >= self.max_alpha:
-                self.alpha_increasing = False
-        else:
-            self.alpha = max(self.alpha - self.glow_speed, self.min_alpha)
-            if self.alpha <= self.min_alpha:
-                self.alpha_increasing = True
             
     def render(self):
         # Calculate handle position - attach to right side of panel
@@ -276,7 +261,6 @@ class VerticalPanel:
             bool: True if the position is within the handle area, False otherwise
         """
         # Handle is attached to the right side of the panel
-        handle_x = self.panel_rect.width + self.current_x - self.handle_width
+        handle_x = self.panel_rect.width + self.target_x - self.handle_width
         handle_rect = pygame.Rect(handle_x, self.y, self.handle_width, self.height)
-        
         return handle_rect.collidepoint(pos) 

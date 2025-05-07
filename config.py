@@ -56,9 +56,6 @@ VERTICAL_PANEL = {
     'height': 350,
     'handle_width': 20,
     'animation_speed': 10,
-    'glow_speed': 10,
-    'min_alpha': 150,
-    'max_alpha': 255,
     'button': {
         'width': 180,
         'height': 40,
@@ -73,7 +70,8 @@ CURSOR_SIZE = 32
 CURSOR_TYPES = {
     'normal': (0, 0),
     'hover': (32, 0),
-    'aim': (64, 0)
+    'aim': (64, 0),
+    'build': (96, 0)
 }
 
 # Game settings
