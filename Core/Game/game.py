@@ -30,6 +30,10 @@ class Game(BaseScreen):
         self.object_collection = ObjectCollection()
         self.objects = []  # Will be populated in load_map
 
+        # Initialize spatial grid for object culling
+        self.grid_cell_size = 128  # Size of each grid cell (4 tiles)
+        self.spatial_grid = {}  # Dictionary to store objects by grid cell
+
         # Initialize panels
         self.panels = []
         self.create_panels()
@@ -165,6 +169,41 @@ class Game(BaseScreen):
         self.object_collections.append(ObjectCollection())  # Large objects
         self.object_collections.append(ObjectCollection())  # Huge objects
 
+    def get_grid_cell(self, x, y):
+        """Get the grid cell coordinates for a world position"""
+        cell_x = int(x // self.grid_cell_size)
+        cell_y = int(y // self.grid_cell_size)
+        return (cell_x, cell_y)
+
+    def add_object_to_grid(self, obj):
+        """Add an object to the spatial grid"""
+        # Get object's world position in pixels
+        obj_world_x = obj['x'] * self.tile_size
+        obj_world_y = obj['y'] * self.tile_size
+        
+        # Get the grid cell for this object
+        cell = self.get_grid_cell(obj_world_x, obj_world_y)
+        
+        # Add object to the grid cell
+        if cell not in self.spatial_grid:
+            self.spatial_grid[cell] = []
+        self.spatial_grid[cell].append(obj)
+
+    def remove_object_from_grid(self, obj):
+        """Remove an object from the spatial grid"""
+        # Get object's world position in pixels
+        obj_world_x = obj['x'] * self.tile_size
+        obj_world_y = obj['y'] * self.tile_size
+        
+        # Get the grid cell for this object
+        cell = self.get_grid_cell(obj_world_x, obj_world_y)
+        
+        # Remove object from the grid cell
+        if cell in self.spatial_grid and obj in self.spatial_grid[cell]:
+            self.spatial_grid[cell].remove(obj)
+            if not self.spatial_grid[cell]:  # If cell is empty, remove it
+                del self.spatial_grid[cell]
+
     def load_map(self, file_path):
         try:
             with open(file_path, 'r') as file:
@@ -211,6 +250,7 @@ class Game(BaseScreen):
                 
                 # Read objects (if any)
                 self.objects = []
+                self.spatial_grid = {}  # Clear spatial grid
                 for line in lines[height + 1:]:
                     # Extract object data from [x][y][type][id][health][z-index] format
                     obj_data = []
@@ -266,7 +306,7 @@ class Game(BaseScreen):
                                 # Get max_health from metadata, default to -1 (infinite) for resources
                                 max_health = metadata.get('max_health', -1 if obj_type == 'resource' else 100)
                                 
-                                self.objects.append({
+                                obj = {
                                     'x': x,
                                     'y': y,
                                     'type': obj_type,
@@ -280,7 +320,9 @@ class Game(BaseScreen):
                                     'name': metadata.get('name', 'Unknown'),
                                     'animation_speed': metadata.get('visuals', {}).get('animation_speed', 0),
                                     'frames': metadata.get('visuals', {}).get('frames', 1)
-                                })
+                                }
+                                self.objects.append(obj)
+                                self.add_object_to_grid(obj)  # Add object to spatial grid
                             else:
                                 print(f"Warning: Could not find object image for {obj_type} {obj_id}")
                     except ValueError as e:
@@ -610,6 +652,10 @@ class Game(BaseScreen):
         visible_top = self.camera_y - 100
         visible_bottom = self.camera_y + self.screen_height + 100
         
+        # Get the grid cells that intersect with the visible area
+        start_cell = self.get_grid_cell(visible_left, visible_top)
+        end_cell = self.get_grid_cell(visible_right, visible_bottom)
+        
         # Pre-calculate tile size and half tile size for faster access
         tile_size = self.tile_size
         half_tile = tile_size // 2
@@ -622,41 +668,46 @@ class Game(BaseScreen):
         screen_width = self.screen_width
         screen_height = self.screen_height
         
-        for obj in self.objects:
-            # Calculate object's world position in pixels
-            obj_world_x = obj['x'] * tile_size
-            obj_world_y = obj['y'] * tile_size
-            
-            # Get object dimensions
-            obj_width = obj['image'].get_width()
-            obj_height = obj['image'].get_height()
-            
-            # Quick bounds check for object visibility
-            if (obj_world_x + obj_width < visible_left or 
-                obj_world_x > visible_right or
-                obj_world_y + obj_height < visible_top or
-                obj_world_y > visible_bottom):
-                continue
-            
-            # Calculate object's screen position
-            obj_screen_x = obj_world_x - camera_x
-            obj_screen_y = obj_world_y - camera_y
-            
-            # Calculate offset for centering
-            offset = obj['offset'] - half_tile
-            
-            # Final screen position
-            final_x = obj_screen_x - offset
-            final_y = obj_screen_y - offset
-            
-            # Only add objects that are actually visible on screen
-            if (final_x + obj_width > 0 and final_x < screen_width and
-                final_y + obj_height > 0 and final_y < screen_height):
-                self.visible_objects_cache.append({
-                    'obj': obj,
-                    'screen_x': final_x,
-                    'screen_y': final_y
-                })
+        # Check each grid cell in the visible area
+        for cell_x in range(start_cell[0], end_cell[0] + 1):
+            for cell_y in range(start_cell[1], end_cell[1] + 1):
+                cell = (cell_x, cell_y)
+                if cell in self.spatial_grid:
+                    for obj in self.spatial_grid[cell]:
+                        # Calculate object's world position in pixels
+                        obj_world_x = obj['x'] * tile_size
+                        obj_world_y = obj['y'] * tile_size
+                        
+                        # Get object dimensions
+                        obj_width = obj['image'].get_width()
+                        obj_height = obj['image'].get_height()
+                        
+                        # Quick bounds check for object visibility
+                        if (obj_world_x + obj_width < visible_left or 
+                            obj_world_x > visible_right or
+                            obj_world_y + obj_height < visible_top or
+                            obj_world_y > visible_bottom):
+                            continue
+                        
+                        # Calculate object's screen position
+                        obj_screen_x = obj_world_x - camera_x
+                        obj_screen_y = obj_world_y - camera_y
+                        
+                        # Calculate offset for centering
+                        offset = obj['offset'] - half_tile
+                        
+                        # Final screen position
+                        final_x = obj_screen_x - offset
+                        final_y = obj_screen_y - offset
+                        
+                        # Only add objects that are actually visible on screen
+                        if (final_x + obj_width > 0 and final_x < screen_width and
+                            final_y + obj_height > 0 and final_y < screen_height):
+                            self.visible_objects_cache.append({
+                                'obj': obj,
+                                'screen_x': final_x,
+                                'screen_y': final_y
+                            })
 
         # Sort visible objects by z-index, then y, then x
         self.visible_objects_cache.sort(key=lambda x: (x['obj']['z_index'], x['obj']['y'], x['obj']['x']))
@@ -793,6 +844,7 @@ class Game(BaseScreen):
         for obj in objects_to_remove:
             if obj in self.objects:
                 self.objects.remove(obj)
+                self.remove_object_from_grid(obj)  # Remove from spatial grid
             if obj == self.selected_object:
                 self.selected_object = None
                 self.selected_object_image = None
@@ -845,6 +897,7 @@ class Game(BaseScreen):
                 if self.panel.render_life_bar(self.selected_object, left_area_rect) and self.selected_object.get('max_health', 100) != -1:  # Don't destroy if infinite health
                     # Object should be destroyed
                     self.objects.remove(self.selected_object)
+                    self.remove_object_from_grid(self.selected_object)  # Remove from spatial grid
                     self.selected_object = None
                     self.selected_object_image = None
 
