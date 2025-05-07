@@ -21,9 +21,15 @@ class MainMenu(BaseScreen):
         # Initialize the mixer for playing music and sound effects
         pygame.mixer.init()  # Initialize the pygame mixer
         self.music_file = "Music/672781__bertsz__cyberpunk_dump.flac"  # Path to the background music file
-        if not pygame.mixer.music.get_busy():
-            pygame.mixer.music.load(self.music_file)  # Load the music
-            pygame.mixer.music.play(-1, 6.0)  # Play the music in an infinite loop (-1 = loop forever)
+        if pygame.mixer.music.get_busy():
+            current_song = pygame.mixer.music.get_pos()
+            if current_song != self.music_file:
+                pygame.mixer.music.stop()
+                pygame.mixer.music.load(self.music_file)
+                pygame.mixer.music.play(-1, 6.0)
+        else:
+            pygame.mixer.music.load(self.music_file)
+            pygame.mixer.music.play(-1, 6.0)
 
         # Load background image based on screen width
         if self.screen_width <= 1024:

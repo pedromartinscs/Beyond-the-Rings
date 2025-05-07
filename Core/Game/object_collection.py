@@ -120,7 +120,8 @@ class ObjectCollection:
                                     'filename': filename,
                                     'size': size,
                                     'name': metadata['name'],
-                                    'description': metadata['description']
+                                    'description': metadata['description'],
+                                    'buttons': metadata.get('buttons', [])
                                 })
                         except ValueError as e:
                             print(f"Error parsing filename {filename}: {e}")

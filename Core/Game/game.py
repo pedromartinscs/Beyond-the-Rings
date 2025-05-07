@@ -21,10 +21,11 @@ class Game(BaseScreen):
 
         # Initialize music
         pygame.mixer.init()
-        self.music_file = "Music/672781__bertsz__cyberpunk_dump.flac"
-        if not pygame.mixer.music.get_busy():
-            pygame.mixer.music.load(self.music_file)
-            pygame.mixer.music.play(-1, 6.0)
+        self.music_file = "Music/__bertsz__cyberpunk_MULTI.mp3"
+        if pygame.mixer.music.get_busy():
+            pygame.mixer.music.stop()
+        pygame.mixer.music.load(self.music_file)
+        pygame.mixer.music.play(-1, 0.0)
 
         # Initialize object collection before panels
         self.object_collection = ObjectCollection()
@@ -46,9 +47,6 @@ class Game(BaseScreen):
         self.object_collections = []
         self.create_object_collections()
 
-        # Initialize minimap
-        self.minimap = Minimap(self.screen_width, self.screen_height)
-
         # Initialize dirty rects for optimization
         self.dirty_rects = []
 
@@ -56,7 +54,6 @@ class Game(BaseScreen):
         self.animation_manager = AnimationManager()
 
         # Mouse state tracking
-        self.is_dragging_minimap = False
         self.last_mouse_pos = None
         self.selected_object = None  # Track the currently selected object
 
@@ -76,7 +73,7 @@ class Game(BaseScreen):
 
         # Load and cache tile images
         self.tile_cache = {}  # Cache for tile images
-        self.tiles = []  # List of cached tile surfaces
+        self.tiles = []
         for i in range(20):  # Load tiles 00000.png to 00019.png
             try:
                 tile_path = f"Maps/Common/Tiles/{i:05d}.png"
@@ -111,20 +108,9 @@ class Game(BaseScreen):
                     # If tile index is out of range, use the first tile
                     self.map_surface.blit(self.tiles[0], (x * self.tile_size, y * self.tile_size))
 
-        # Create minimap
-        self.minimap_size = 150  # Size of the minimap in pixels
-        self.minimap_surface = pygame.Surface((self.minimap_size, self.minimap_size))
-        self.minimap_scale = min(self.minimap_size / (self.map_width * self.tile_size),
-                               self.minimap_size / (self.map_height * self.tile_size))
-        
-        # Create a scaled version of the map for the minimap
-        self.minimap_map = pygame.transform.scale(self.map_surface, 
-            (int(self.map_width * self.tile_size * self.minimap_scale),
-             int(self.map_height * self.tile_size * self.minimap_scale)))
-
-        # Calculate minimap position (top right corner)
-        self.minimap_x = self.screen_width - self.minimap_size - 20  # 20 pixels from right edge
-        self.minimap_y = 20  # 20 pixels from top edge
+        # Initialize minimap after map surface is created
+        self.minimap = Minimap(self.screen_width, self.screen_height)
+        self.minimap.set_map(self.map_surface, self.map_width * self.tile_size, self.map_height * self.tile_size)
 
         # Camera variables
         self.camera_x = 0
@@ -342,8 +328,8 @@ class Game(BaseScreen):
             return [[(x + y) % 2 for x in range(120)] for y in range(120)]  # Return default map
 
     def is_minimap_clicked(self, pos):
-        minimap_rect = pygame.Rect(self.minimap_x, self.minimap_y, 
-                                 self.minimap_size, self.minimap_size)
+        minimap_rect = pygame.Rect(self.minimap.x, self.minimap.y, 
+                                 self.minimap.size, self.minimap.size)
         return minimap_rect.collidepoint(pos)
 
     def draw_selection_ring(self, center, radius, color, width):
@@ -442,7 +428,21 @@ class Game(BaseScreen):
             return
 
         # Handle events for minimap
-        self.minimap.handle_event(event)
+        if self.minimap.handle_event(event):
+            # If minimap was clicked, update camera position
+            if event.type == pygame.MOUSEBUTTONDOWN or event.type == pygame.MOUSEMOTION:
+                world_pos = self.minimap.get_world_position(event.pos)
+                if world_pos:
+                    world_x, world_y = world_pos
+                    # Center the camera on the clicked position
+                    self.camera_x = max(0, min(world_x - self.camera_width // 2, 
+                                             self.map_width * self.tile_size - self.camera_width))
+                    self.camera_y = max(0, min(world_y - self.camera_height // 2,
+                                             self.map_height * self.tile_size - self.camera_height))
+                    # Update visible objects
+                    self.camera_moved = True
+                    self.update_visible_area()
+                    self.update_visible_objects()
 
         # Track cursor state during targeting
         if self.panel.is_targeting:
@@ -475,7 +475,6 @@ class Game(BaseScreen):
                     if objects_at_tile:
                         # If there are objects at this tile, select the one with highest z-index
                         target_object = max(objects_at_tile, key=lambda x: x['z_index'])
-                        print(f"[DEBUG] handle_events: Selected target object: {target_object['type']} {target_object['id']}")
                         attack_result = self.panel.handle_target_selection(target_object)
                         if attack_result and attack_result['action'] == 'attack':
                             self.handle_attack_command(attack_result)
@@ -485,7 +484,6 @@ class Game(BaseScreen):
                         if huge_objects:
                             # Select the huge object with highest z-index
                             target_object = max(huge_objects, key=lambda x: x['z_index'])
-                            print(f"[DEBUG] handle_events: Selected huge target object: {target_object['type']} {target_object['id']}")
                             attack_result = self.panel.handle_target_selection(target_object)
                             if attack_result and attack_result['action'] == 'attack':
                                 self.handle_attack_command(attack_result)
@@ -546,12 +544,12 @@ class Game(BaseScreen):
 
     def update_camera_from_minimap(self, mouse_pos):
         # Calculate the click position relative to the minimap
-        rel_x = mouse_pos[0] - self.minimap_x
-        rel_y = mouse_pos[1] - self.minimap_y
+        rel_x = mouse_pos[0] - self.minimap.x
+        rel_y = mouse_pos[1] - self.minimap.y
         
         # Convert minimap coordinates to world coordinates
-        world_x = int(rel_x / self.minimap_scale)
-        world_y = int(rel_y / self.minimap_scale)
+        world_x = int(rel_x / self.minimap.scale)
+        world_y = int(rel_y / self.minimap.scale)
         
         # Store old camera position to check if it changed
         old_camera_x = self.camera_x
@@ -656,7 +654,6 @@ class Game(BaseScreen):
                 # Get attacker metadata
                 attacker_metadata = self.object_collection.get_object_metadata(attacker['type'], attacker['id'])
                 if not attacker_metadata:
-                    print(f"[DEBUG] update: No metadata found for attacker {attacker_id}")
                     del self.active_attacks[attacker_id]
                     continue
                     
@@ -669,11 +666,8 @@ class Game(BaseScreen):
                 dy = target['y'] - attacker['y']
                 distance = (dx * dx + dy * dy) ** 0.5
                 
-                print(f"[DEBUG] update: Distance between {attacker_id} and {target_id} = {distance:.1f} tiles, range = {attack_range} tiles")
-                
                 # Check if target is still in range
                 if distance > attack_range:
-                    print(f"[DEBUG] update: Target {target_id} out of range for attacker {attacker_id}")
                     # Stop the attack
                     self.animation_manager.set_animation_state(attacker_id, "static")
                     del self.active_attacks[attacker_id]
@@ -834,7 +828,7 @@ class Game(BaseScreen):
         mouse_x, mouse_y = pygame.mouse.get_pos()
 
         # First pass: Draw all non-selected objects and back parts of selection rings
-        objects_to_remove = []  # Track objects that need to be removed
+        objects_to_remove = []
         for obj_data in self.visible_objects_cache:
             obj = obj_data['obj']
             screen_x = obj_data['screen_x']
@@ -928,11 +922,10 @@ class Game(BaseScreen):
                 self.panel.set_selected_object(None)
 
         # Render the minimap
-        self.update_minimap()
-        minimap_rect = pygame.Rect(self.minimap_x, self.minimap_y, 
-                                 self.minimap_size, self.minimap_size)
+        self.minimap.render(self.screen, self.camera_x, self.camera_y, self.camera_width, self.camera_height)
+        minimap_rect = pygame.Rect(self.minimap.x, self.minimap.y, 
+                                 self.minimap.size, self.minimap.size)
         self.dirty_rects.append(minimap_rect)
-        self.screen.blit(self.minimap_surface, (self.minimap_x, self.minimap_y))
 
         # Render the panels
         self.vertical_panel.render()
@@ -1000,26 +993,6 @@ class Game(BaseScreen):
         else:
             pygame.display.flip()
 
-    def update_minimap(self):
-        # Clear the minimap surface
-        self.minimap_surface.fill((0, 0, 0))
-        
-        # Calculate the position to center the minimap
-        minimap_x = (self.minimap_size - self.minimap_map.get_width()) // 2
-        minimap_y = (self.minimap_size - self.minimap_map.get_height()) // 2
-        
-        # Draw the minimap
-        self.minimap_surface.blit(self.minimap_map, (minimap_x, minimap_y))
-        
-        # Draw the viewport rectangle
-        viewport_rect = pygame.Rect(
-            minimap_x + self.camera_x * self.minimap_scale,
-            minimap_y + self.camera_y * self.minimap_scale,
-            self.camera_width * self.minimap_scale,
-            self.camera_height * self.minimap_scale
-        )
-        pygame.draw.rect(self.minimap_surface, (255, 255, 255), viewport_rect, 2)
-
     def calculate_angle(self, start_x, start_y, target_x, target_y):
         """Calculate the angle between two points in degrees"""
         dx = target_x - start_x
@@ -1063,37 +1036,24 @@ class Game(BaseScreen):
 
     def handle_target_selection(self, target_object):
         """Handle target selection for attack"""
-        print("[DEBUG] handle_target_selection: Starting target selection")
         if not self.attacker:
-            print("[DEBUG] handle_target_selection: No attacker set")
             return None
             
-        print(f"[DEBUG] handle_target_selection: Processing attack from {self.attacker['type']} {self.attacker['id']} to {target_object['type']} {target_object['id']}")
-        
         # Calculate distance in tiles
         dx = target_object['x'] - self.attacker['x']
         dy = target_object['y'] - self.attacker['y']
         distance = (dx * dx + dy * dy) ** 0.5
         
-        print(f"[DEBUG] handle_target_selection: Raw coordinates - Attacker: ({self.attacker['x']}, {self.attacker['y']}), Target: ({target_object['x']}, {target_object['y']})")
-        print(f"[DEBUG] handle_target_selection: Distance = {distance} tiles")
-        
         # Get attacker's metadata
         metadata = self.object_collection.get_object_metadata(self.attacker['type'], self.attacker['id'])
-        print(f"[DEBUG] handle_target_selection: Metadata = {metadata}")
         
         if not metadata:
-            print("[DEBUG] handle_target_selection: No metadata found for attacker")
             return None
             
         properties = metadata.get('properties', {})
-        print(f"[DEBUG] handle_target_selection: Properties = {properties}")
-        
         attack_range = properties.get('attack_range', 0)
-        print(f"[DEBUG] handle_target_selection: Attack range = {attack_range}")
         
         if distance <= attack_range:
-            print("[DEBUG] handle_target_selection: Target in range")
             return {
                 'action': 'attack',
                 'attacker': self.attacker,
@@ -1102,7 +1062,6 @@ class Game(BaseScreen):
                 'is_unit': properties.get('is_unit', False)
             }
         else:
-            print(f"[DEBUG] handle_target_selection: Target out of range (distance: {distance}, range: {attack_range})")
             return {
                 'action': 'attack',
                 'attacker': self.attacker,

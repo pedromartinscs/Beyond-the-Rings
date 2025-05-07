@@ -9,6 +9,9 @@ class AnimationManager:
         self.last_update = {}  # Track last update time for each object
         self.object_metadata = {}  # Cache for object metadata
         self.animation_states = {}  # Track current animation state for each object
+        self.current_directions = {}  # Track current direction for each object
+        self.target_directions = {}  # Track target direction for each object
+        self.rotation_speed = 50  # Time in milliseconds between direction changes
 
     def load_object_metadata(self, object_type, object_id):
         """Load and cache object metadata from JSON"""
@@ -70,8 +73,54 @@ class AnimationManager:
         self.animation_states[object_id] = state
         self.reset_animation(object_id)
 
+    def get_current_direction(self, object_id):
+        """Get the current direction for an object"""
+        if object_id not in self.current_directions:
+            self.current_directions[object_id] = 0
+        return self.current_directions[object_id]
+
+    def set_target_direction(self, object_id, target_direction):
+        """Set the target direction for an object"""
+        self.target_directions[object_id] = target_direction
+        if object_id not in self.current_directions:
+            self.current_directions[object_id] = 0
+        if object_id not in self.last_update:
+            self.last_update[object_id] = pygame.time.get_ticks()
+
+    def update_rotation(self, object_id):
+        """Update the rotation of an object towards its target direction"""
+        if object_id not in self.target_directions or object_id not in self.current_directions:
+            return
+
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_update[object_id] >= self.rotation_speed:
+            current = self.current_directions[object_id]
+            target = self.target_directions[object_id]
+
+            # Calculate the shortest path to the target direction
+            diff = (target - current) % 360
+            if diff > 180:
+                diff -= 360
+
+            # Move one step (45 degrees) closer to the target
+            if abs(diff) > 45:
+                if diff > 0:
+                    self.current_directions[object_id] = (current + 45) % 360
+                else:
+                    self.current_directions[object_id] = (current - 45) % 360
+            else:
+                # If we're within one step, go directly to target
+                self.current_directions[object_id] = target
+
+            self.last_update[object_id] = current_time
+
     def get_current_frame(self, object_id, object_type, animation_type="static", direction=0, animation_speed=0):
         """Get the current animation frame for an object"""
+        # Update rotation if this is a turret
+        if object_type == 'building' and object_id == 3:
+            self.update_rotation(object_id)
+            direction = self.get_current_direction(object_id)
+
         # Get the current animation state
         current_state = self.animation_states.get(object_id, "static")
         
@@ -99,6 +148,10 @@ class AnimationManager:
         if animation_type == "static" or animation_speed == 0:
             return frames[0]
 
+        # For fire animations, use a faster speed (50ms per frame)
+        if animation_type == "fire":
+            animation_speed = 50
+
         # Update frame based on animation speed
         current_time = pygame.time.get_ticks()
         if current_time - self.last_update[object_id] >= animation_speed:
@@ -109,9 +162,11 @@ class AnimationManager:
             if animation_type == "destruction" and self.current_frames[object_id] == 0:
                 return "DESTROYED"
 
-            # If this was the last frame of a fire animation, reset to static
+            # If this was the last frame of a fire animation, reset to static but keep the direction
             if animation_type == "fire" and self.current_frames[object_id] == 0:
                 self.animation_states[object_id] = "static"
+                # Return the static frame for the current direction
+                return self.load_animation(object_type, object_id, "static", direction)[0]
 
         return frames[self.current_frames[object_id]]
 

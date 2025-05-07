@@ -11,6 +11,8 @@ class Minimap:
         self.surface.fill((0, 0, 0))  # Black background
         self.scale = 1.0  # Will be set when map is loaded
         self.map_surface = None  # Will store the scaled map surface
+        self.is_dragging = False
+        self.last_mouse_pos = None
 
     def set_map(self, map_surface, map_width, map_height):
         """Set the map surface and calculate the scale"""
@@ -24,12 +26,42 @@ class Minimap:
         if event.type == pygame.MOUSEBUTTONDOWN:
             if event.button == 1:  # Left click
                 if self.is_clicked(event.pos):
+                    self.is_dragging = True
+                    self.last_mouse_pos = event.pos
+                    return True
+        elif event.type == pygame.MOUSEBUTTONUP:
+            if event.button == 1:  # Left click
+                self.is_dragging = False
+                self.last_mouse_pos = None
+        elif event.type == pygame.MOUSEMOTION:
+            if self.is_dragging and self.last_mouse_pos:
+                if self.is_clicked(event.pos):
+                    self.last_mouse_pos = event.pos
                     return True
         return False
 
     def is_clicked(self, pos):
         """Check if a position is within the minimap"""
         return pygame.Rect(self.x, self.y, self.size, self.size).collidepoint(pos)
+
+    def get_world_position(self, screen_pos):
+        """Convert screen position to world position"""
+        if not self.map_surface:
+            return None
+            
+        # Calculate the position relative to the minimap
+        rel_x = screen_pos[0] - self.x
+        rel_y = screen_pos[1] - self.y
+        
+        # Calculate the position to center the minimap
+        minimap_x = (self.size - self.map_surface.get_width()) // 2
+        minimap_y = (self.size - self.map_surface.get_height()) // 2
+        
+        # Convert minimap coordinates to world coordinates
+        world_x = int((rel_x - minimap_x) / self.scale)
+        world_y = int((rel_y - minimap_y) / self.scale)
+        
+        return world_x, world_y
 
     def render(self, screen, camera_x, camera_y, camera_width, camera_height):
         """Render the minimap on the screen"""
