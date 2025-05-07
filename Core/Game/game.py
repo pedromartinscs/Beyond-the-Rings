@@ -563,9 +563,10 @@ class Game(BaseScreen):
         self.camera_y = max(0, min(world_y - self.camera_height // 2,
                                  self.map_height * self.tile_size - self.camera_height))
         
-        # Set camera_moved flag if position changed
-        if old_camera_x != self.camera_x or old_camera_y != self.camera_y:
-            self.camera_moved = True
+        # Always update visible objects when using minimap
+        self.camera_moved = True
+        self.update_visible_area()
+        self.update_visible_objects()
 
     def update_visible_area(self):
         """Update the visible area rectangle based on camera position"""
@@ -601,20 +602,34 @@ class Game(BaseScreen):
         
         # Optimize camera movement with edge detection
         edge_area = 50  # pixels from edge to trigger camera movement
-        move_speed = 5  # pixels per frame
+        move_speed = 15  # Increased from 5 to 15 for faster movement
+        
+        # Store old camera position to check if it changed
+        old_camera_x = self.camera_x
+        old_camera_y = self.camera_y
+        
+        # Calculate maximum camera positions
+        max_camera_x = self.map_width * self.tile_size - self.screen_width
+        max_camera_y = self.map_height * self.tile_size - self.screen_height
         
         # Check horizontal movement
         if mouse_pos[0] < edge_area:
             self.camera_x = max(0, self.camera_x - move_speed)
-        elif mouse_pos[0] > self.screen.get_width() - edge_area:
-            self.camera_x = min(self.map_width - self.screen.get_width(), self.camera_x + move_speed)
+        elif mouse_pos[0] > self.screen_width - edge_area:
+            self.camera_x = min(max_camera_x, self.camera_x + move_speed)
             
         # Check vertical movement
         if mouse_pos[1] < edge_area:
             self.camera_y = max(0, self.camera_y - move_speed)
-        elif mouse_pos[1] > self.screen.get_height() - edge_area:
-            self.camera_y = min(self.map_height - self.screen.get_height(), self.camera_y + move_speed)
-        
+        elif mouse_pos[1] > self.screen_height - edge_area:
+            self.camera_y = min(max_camera_y, self.camera_y + move_speed)
+            
+        # Set camera_moved flag if position changed
+        if old_camera_x != self.camera_x or old_camera_y != self.camera_y:
+            self.camera_moved = True
+            self.update_visible_area()
+            self.update_visible_objects()
+
         # Process active attacks
         for attack in list(self.active_attacks.items()):
             attacker_id = attack[0]
@@ -627,13 +642,13 @@ class Game(BaseScreen):
             
             # Find attacker
             for obj in self.objects:
-                if obj['id'] == attacker_id:
+                if obj['type'] == attack_data['attacker_type'] and obj['id'] == attacker_id:
                     attacker = obj
                     break
                     
             # Find target
             for obj in self.objects:
-                if obj['id'] == target_id:
+                if obj['type'] == attack_data['target_type'] and obj['id'] == target_id:
                     target = obj
                     break
             
@@ -846,7 +861,7 @@ class Game(BaseScreen):
                 obj['type'],
                 "static",
                 current_direction,
-                obj['animation_speed']
+                obj.get('animation_speed', 0)  # Use get() with default value
             )
             
             # Check if object should be destroyed
@@ -854,6 +869,7 @@ class Game(BaseScreen):
                 objects_to_remove.append(obj)
                 continue
             
+            # If no animation frame is available, use the default image
             obj_image = current_frame if current_frame else obj['image']
             
             # Get object dimensions
@@ -1029,7 +1045,10 @@ class Game(BaseScreen):
         if attack_result['in_range']:
             # Start attack immediately
             self.active_attacks[attacker['id']] = {
-                'target_id': target['id'],  # Store target ID instead of target object
+                'attacker_type': attacker['type'],
+                'attacker_id': attacker['id'],
+                'target_type': target['type'],
+                'target_id': target['id'],
                 'last_attack_time': pygame.time.get_ticks(),
                 'cooldown': 1000  # Default cooldown in milliseconds
             }

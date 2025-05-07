@@ -109,6 +109,10 @@ class AnimationManager:
             if animation_type == "destruction" and self.current_frames[object_id] == 0:
                 return "DESTROYED"
 
+            # If this was the last frame of a fire animation, reset to static
+            if animation_type == "fire" and self.current_frames[object_id] == 0:
+                self.animation_states[object_id] = "static"
+
         return frames[self.current_frames[object_id]]
 
     def reset_animation(self, object_id):
