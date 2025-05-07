@@ -181,10 +181,7 @@ class VerticalPanel:
         # Draw the panel
         self.screen.blit(panel_surface, (self.current_x, self.y))
 
-        # Update dirty rectangles
-        if self.last_rect:
-            pygame.display.update(self.last_rect)
-        pygame.display.update(current_rect)
+        # Store the current rect for next frame's dirty rectangle calculation
         self.last_rect = current_rect
 
     def handle_events(self, event: pygame.event.Event) -> Optional[str]:

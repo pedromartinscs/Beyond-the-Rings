@@ -522,8 +522,7 @@ class Game(BaseScreen):
             from Core.Menu.main_menu import MainMenu
             return MainMenu(self.screen)
         elif action == "options":
-            from Core.Options.options import OptionsScreen
-            return OptionsScreen(self.screen)
+            raise NotImplementedError("Options menu not yet implemented")
         elif action == "quit":
             pygame.quit()
             sys.exit()
@@ -835,16 +834,27 @@ class Game(BaseScreen):
                     self.selected_object = None
                     self.selected_object_image = None
 
+        # IMPORTANT: Call parent's render method to ensure cursor is rendered on top of everything
+        # This is required because BaseScreen handles cursor rendering and we want the cursor
+        # to always be visible on top of all game elements
+        super().render()
+
+        # Add cursor's dirty rectangle to the update list
+        cursor_size = self.cursor_manager.cursor_size
+        cursor_pos = pygame.mouse.get_pos()
+        cursor_rect = pygame.Rect(
+            cursor_pos[0] - cursor_size // 2,
+            cursor_pos[1] - cursor_size // 2,
+            cursor_size,
+            cursor_size
+        )
+        self.dirty_rects.append(cursor_rect)
+
         # Update only the dirty areas of the screen
         if self.dirty_rects:
             pygame.display.update(self.dirty_rects)
         else:
             pygame.display.flip()
-
-        # IMPORTANT: Call parent's render method to ensure cursor is rendered on top of everything
-        # This is required because BaseScreen handles cursor rendering and we want the cursor
-        # to always be visible on top of all game elements
-        super().render()
 
     def update_minimap(self):
         # Clear the minimap surface
