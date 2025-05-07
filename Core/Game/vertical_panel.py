@@ -194,10 +194,15 @@ class VerticalPanel:
         Returns:
             Optional[str]: Action string if an event was handled, None otherwise
         """
+        if event.type == pygame.KEYDOWN:
+            if event.key == pygame.K_ESCAPE:
+                self.toggle()
+                return "panel_toggled"
+                
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
             
-            # Use is_handle_clicked method for handle click detection
+            # Check if handle was clicked
             if self.is_handle_clicked(mouse_pos):
                 self.toggle()
                 return "panel_toggled"

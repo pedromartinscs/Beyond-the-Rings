@@ -3,13 +3,14 @@ import math
 from typing import Tuple
 
 class Button:
-    def __init__(self, x, y, number, spacing, width, height, text, action=None, image_path=None, glow_image_path=None):
+    def __init__(self, x, y, number, spacing, width, height, text, action=None, image_path=None, glow_image_path=None, glow_behind=False):
         render_y = y + number * (height + spacing)
         self.rect = pygame.Rect(x, render_y, width, height)
         self.text = text
         self.action = action
         self.image_path = image_path  # Path to the button image (optional)
         self.glow_image_path = glow_image_path  # Path to the glow image (optional)
+        self.glow_behind = glow_behind  # Whether glow should be behind the button
         self.font = pygame.font.Font(None, 36)
         self.text_surface = self.font.render(self.text, True, (0, 0, 0))
         self.text_rect = self.text_surface.get_rect(center=self.rect.center)
@@ -48,33 +49,18 @@ class Button:
         # Check if the button is being hovered over or clicked
         if self.rect.collidepoint(mouse_pos):
             self.is_hovered = True
-
-            # Get the current time in milliseconds (since Pygame was initialized)
-            time_elapsed = pygame.time.get_ticks() / 1000.0  # Convert to seconds
-
-            # Calculate a pulsing effect based on the time elapsed
-            pulse_factor = math.sin(time_elapsed * self.glow_speed)  # Use sine wave for smooth pulsing
-
-            # Modify the glow width and height based on the time-based pulse factor
-            self.glow_width = self.rect.width + 3 + int(abs(pulse_factor) * 5)  # Adjust max pulse size (e.g., 20)
-            self.glow_height = self.rect.height + 3 + int(abs(pulse_factor) * 5)
             
-            # Calculate the glow transparency based on pulse factor
-            self.glow_alpha = 200 + int(abs(pulse_factor) * 20)  # You can tweak the alpha range (e.g., 60 to 90)
-
-            # Ensure alpha stays within valid range (0 to 255)
-            self.glow_alpha = min(255, max(0, self.glow_alpha))
-
-            # Resize the glow image (using pygame.transform.scale to resize)
-            glow_scaled = pygame.transform.scale(self.glow_image, (self.glow_width, self.glow_height))
-            glow_scaled.set_alpha(self.glow_alpha)  # Apply transparency to glow image
-
-            # Position the glow effect behind the button
-            glow_rect = glow_scaled.get_rect(center=self.rect.center)
-            screen.blit(glow_scaled, glow_rect)  # Draw the glow
-
-            # Draw the button image
-            screen.blit(self.image, self.rect.topleft)
+            if self.glow_behind:
+                # Draw glow behind the button
+                if self.glow_image:
+                    screen.blit(self.glow_image, self.rect.topleft)
+                screen.blit(self.image, self.rect.topleft)
+            else:
+                # Draw glow instead of the button
+                if self.glow_image:
+                    screen.blit(self.glow_image, self.rect.topleft)
+                else:
+                    screen.blit(self.image, self.rect.topleft)
 
             if mouse_pressed[0]:  # Left-click pressed
                 self.clicked_state = True

@@ -46,12 +46,12 @@ class MainMenu(BaseScreen):
         start_x = (self.screen.get_width() - button_width) // 2
         start_y = (self.screen.get_height() - (button_height * 5 + button_spacing * 4)) // 5  # Adjust for 3 buttons
 
-        self.buttons.append(Button(start_x, start_y, 1, button_spacing, button_width, button_height, "New Game", self.start_game, "Images/menu_button.png", "Images/menu_button_glow.png"))
-        self.buttons.append(Button(start_x, start_y, 2, button_spacing, button_width, button_height, "Load Game", self.options, "Images/menu_button.png", "Images/menu_button_glow.png"))
-        self.buttons.append(Button(start_x, start_y, 3, button_spacing, button_width, button_height, "Campaign", self.options, "Images/menu_button.png", "Images/menu_button_glow.png"))
-        self.buttons.append(Button(start_x, start_y, 4, button_spacing, button_width, button_height, "Options", self.options, "Images/menu_button.png", "Images/menu_button_glow.png"))
-        self.buttons.append(Button(start_x, start_y, 5, button_spacing, button_width, button_height, "Credits", self.credits, "Images/menu_button.png", "Images/menu_button_glow.png"))
-        self.buttons.append(Button(start_x, start_y, 6, button_spacing, button_width, button_height, "Exit", self.exit_game, "Images/menu_button.png", "Images/menu_button_glow.png"))
+        self.buttons.append(Button(start_x, start_y, 1, button_spacing, button_width, button_height, "New Game", self.start_game, "Images/menu_button.png", "Images/menu_button_glow.png", glow_behind=True))
+        self.buttons.append(Button(start_x, start_y, 2, button_spacing, button_width, button_height, "Load Game", self.options, "Images/menu_button.png", "Images/menu_button_glow.png", glow_behind=True))
+        self.buttons.append(Button(start_x, start_y, 3, button_spacing, button_width, button_height, "Campaign", self.options, "Images/menu_button.png", "Images/menu_button_glow.png", glow_behind=True))
+        self.buttons.append(Button(start_x, start_y, 4, button_spacing, button_width, button_height, "Options", self.options, "Images/menu_button.png", "Images/menu_button_glow.png", glow_behind=True))
+        self.buttons.append(Button(start_x, start_y, 5, button_spacing, button_width, button_height, "Credits", self.credits, "Images/menu_button.png", "Images/menu_button_glow.png", glow_behind=True))
+        self.buttons.append(Button(start_x, start_y, 6, button_spacing, button_width, button_height, "Exit", self.exit_game, "Images/menu_button.png", "Images/menu_button_glow.png", glow_behind=True))
 
     def draw_background(self):
         # Get the screen dimensions

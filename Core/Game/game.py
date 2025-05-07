@@ -124,12 +124,8 @@ class Game(BaseScreen):
         self.camera_width = self.screen_width
         self.camera_height = self.screen_height
 
-        # Panel variables
-        self.panel = Panel(self.screen, self.object_collection)
-        self.panel.game = self  # Connect panel to game instance
+        # Create vertical panel
         self.vertical_panel = VerticalPanel(self.screen, self)  # Pass self to access minimap
-        self.panel_visible = False  # Track bottom panel visibility
-        self.vertical_panel_visible = False  # Track vertical panel visibility
 
         # Add object rendering optimization variables
         self.visible_objects_cache = []
@@ -153,7 +149,9 @@ class Game(BaseScreen):
 
         # Create a single panel with the game's object collection
         self.panels = []
-        self.panels.append(Panel(self.screen, self.object_collection))
+        self.panel = Panel(self.screen, self.object_collection)  # Create and assign to self.panel
+        self.panel.game = self  # Set the game reference for the panel
+        self.panels.append(self.panel)  # Also add to panels list
 
     def create_object_collections(self):
         """Create object collections for different sizes"""
@@ -260,12 +258,16 @@ class Game(BaseScreen):
                                 # Get object metadata
                                 metadata = self.object_collection.get_object_metadata(obj_type, obj_id)
                                 
+                                # Get max_health from metadata, default to -1 (infinite) for resources
+                                max_health = metadata.get('max_health', -1 if obj_type == 'resource' else 100)
+                                
                                 self.objects.append({
                                     'x': x,
                                     'y': y,
                                     'type': obj_type,
                                     'id': obj_id,
                                     'health': health,
+                                    'max_health': max_health,  # Add max_health property
                                     'z_index': z_index,
                                     'image': obj_image,
                                     'offset': 64 if obj_image.get_width() == 128 else 32,
@@ -355,14 +357,14 @@ class Game(BaseScreen):
         mouse_x, mouse_y = mouse_pos
         
         # Check horizontal panel (bottom panel)
-        if self.panel_visible or self.panel.current_y < self.screen_height - self.panel.handle_height:
+        if self.panel.is_open or self.panel.current_y < self.screen_height - self.panel.handle_height:
             # Panel is visible or animating
             panel_y = self.panel.current_y
             if mouse_y >= panel_y:
                 return True
         
         # Check vertical panel (side panel)
-        if self.vertical_panel_visible or self.vertical_panel.x > -self.vertical_panel.width:
+        if self.vertical_panel.is_open or self.vertical_panel.x > -self.vertical_panel.width:
             # Panel is visible or animating
             panel_x = self.vertical_panel.x
             if 0 <= mouse_x <= self.vertical_panel.width:
@@ -378,48 +380,27 @@ class Game(BaseScreen):
         # First handle cursor state through base class
         super().handle_events(event)
 
-        # Handle events for panels
-        for panel in self.panels:
-            panel.handle_events(event)
+        # Handle events for horizontal panel first
+        result = self.panel.handle_events(event)
+        if result == "panel_toggled":
+            # Panel was toggled, no need to process further
+            return
+                
+        # Handle events for vertical panel
+        result = self.vertical_panel.handle_events(event)
+        if result == "panel_toggled":
+            # Panel was toggled, no need to process further
+            return
 
         # Handle events for minimap
         self.minimap.handle_event(event)
 
-        if event.type == pygame.KEYDOWN:
-            if event.key == pygame.K_SPACE:
-                # Toggle the bottom panel visibility when space is pressed
-                if self.panel_visible:
-                    self.panel.hide()  # Hide the panel
-                else:
-                    self.panel.show()  # Show the panel
-                self.panel_visible = not self.panel_visible
-            elif event.key == pygame.K_ESCAPE:
-                # Toggle the vertical panel visibility when escape is pressed
-                if self.vertical_panel_visible:
-                    self.vertical_panel.hide()
-                else:
-                    self.vertical_panel.show()
-                self.vertical_panel_visible = not self.vertical_panel_visible
-
         if event.type == pygame.MOUSEBUTTONDOWN:
             mouse_pos = pygame.mouse.get_pos()
             
-            # First check if any panel handle is clicked
+            # Then check if minimap is clicked
             if event.button == 1:  # Left click
-                if self.vertical_panel.is_handle_clicked(mouse_pos):
-                    if self.vertical_panel_visible:
-                        self.vertical_panel.hide()
-                    else:
-                        self.vertical_panel.show()
-                    self.vertical_panel_visible = not self.vertical_panel_visible
-                elif self.panel.is_handle_clicked(mouse_pos):
-                    if self.panel_visible:
-                        self.panel.hide()
-                    else:
-                        self.panel.show()
-                    self.panel_visible = not self.panel_visible
-                # Then check if minimap is clicked
-                elif self.is_minimap_clicked(mouse_pos):
+                if self.is_minimap_clicked(mouse_pos):
                     self.is_dragging_minimap = True
                     self.last_mouse_pos = mouse_pos
                     self.update_camera_from_minimap(mouse_pos)
@@ -495,14 +476,6 @@ class Game(BaseScreen):
                 if self.is_minimap_clicked(mouse_pos):
                     self.update_camera_from_minimap(mouse_pos)
                 self.last_mouse_pos = mouse_pos
-
-        # Pass events to the panels
-        if self.panel_visible:
-            if self.panel.handle_events(event):
-                return  # Event was handled by panel
-                
-        if self.vertical_panel_visible:
-            self.vertical_panel.handle_events(event)
 
     def update_camera_from_minimap(self, mouse_pos):
         # Calculate the click position relative to the minimap
@@ -719,7 +692,7 @@ class Game(BaseScreen):
             )
             
             # Check if object should be destroyed
-            if current_frame == "DESTROYED":
+            if current_frame == "DESTROYED" and obj.get('max_health', 100) != -1:  # Don't destroy if infinite health
                 objects_to_remove.append(obj)
                 continue
             
@@ -791,7 +764,7 @@ class Game(BaseScreen):
         self.panel.render()
 
         # Render selected object image in the horizontal panel's left area
-        if self.panel_visible or self.panel.current_y < self.screen_height - self.panel.handle_height:
+        if self.panel.current_y < self.screen_height - self.panel.handle_height:
             # Get the left area position from the panel
             left_area_rect = self.panel.get_left_area_rect()
             
@@ -823,7 +796,7 @@ class Game(BaseScreen):
 
             # Render life bar and check if object should be destroyed
             if self.selected_object:
-                if self.panel.render_life_bar(self.selected_object, left_area_rect):
+                if self.panel.render_life_bar(self.selected_object, left_area_rect) and self.selected_object.get('max_health', 100) != -1:  # Don't destroy if infinite health
                     # Object should be destroyed
                     self.objects.remove(self.selected_object)
                     self.selected_object = None
