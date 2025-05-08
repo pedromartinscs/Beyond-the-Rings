@@ -103,9 +103,10 @@ class Game(BaseScreen):
                     # If tile index is out of range, use the first tile
                     self.map_surface.blit(self.tiles[0], (x * self.tile_size, y * self.tile_size))
 
-        # Initialize minimap after map surface is created
+        # Initialize minimap after map surface is created and is_dragging_minimap is set to False
         self.minimap = Minimap(self.screen_width, self.screen_height)
         self.minimap.set_map(self.map_surface, self.map_width * self.tile_size, self.map_height * self.tile_size)
+        self.is_dragging_minimap = False
 
         # Camera variables
         self.camera_x = 0
@@ -266,6 +267,7 @@ class Game(BaseScreen):
                         
                         if 0 <= x < width and 0 <= y < height:
                             # Load object metadata from JSON
+
                             json_path = os.path.join("Maps", "Common", "Objects", obj_type, f"{obj_type}{obj_id:05d}.json")
                             metadata = {}
                             if os.path.exists(json_path):
@@ -273,7 +275,7 @@ class Game(BaseScreen):
                                     metadata = json.load(f)
                             
                             # Get object image from animation manager
-                            obj_image = self.animation_manager.load_animation(obj_type, obj_id, "static", 0)
+                            obj_image = self.animation_manager.load_animation(obj_type, obj_id, str(x) + '_' + str(y) + '_' + obj_type + '_' + str(obj_id), "static", 0)
                             if obj_image:
                                 obj_image = obj_image[0]  # Get first frame for static animation
                             else:
@@ -302,9 +304,14 @@ class Game(BaseScreen):
                                     'image': obj_image,
                                     'offset': 64 if obj_image.get_width() == 128 else 32,
                                     'damage': damage,
+                                    'unique_id': str(x) + '_' + str(y) + '_' + obj_type + '_' + str(obj_id),
                                     'name': metadata.get('name', 'Unknown'),
                                     'animation_speed': metadata.get('visuals', {}).get('animation_speed', 0),
-                                    'frames': metadata.get('visuals', {}).get('frames', 1)
+                                    'frames': metadata.get('visuals', {}).get('frames', 1),
+                                    'is_unit': metadata.get('is_unit', False),
+                                    'direction': metadata.get('direction', 0),
+                                    'has_turret': metadata.get('has_turret', False),
+                                    'turret_direction': metadata.get('turret_direction', 0)
                                 }
                                 self.objects.append(obj)
                                 self.add_object_to_grid(obj)  # Add object to spatial grid
@@ -403,6 +410,211 @@ class Game(BaseScreen):
                 return True
         
         return False
+
+    def update_camera_from_minimap(self, mouse_pos):
+        # Calculate the click position relative to the minimap
+        rel_x = mouse_pos[0] - self.minimap.x
+        rel_y = mouse_pos[1] - self.minimap.y
+        
+        # Convert minimap coordinates to world coordinates
+        world_x = int(rel_x / self.minimap.scale)
+        world_y = int(rel_y / self.minimap.scale)
+        
+        # Store old camera position to check if it changed
+        old_camera_x = self.camera_x
+        old_camera_y = self.camera_y
+        
+        # Center the camera on the clicked position
+        self.camera_x = max(0, min(world_x - self.camera_width // 2, 
+                                 self.map_width * self.tile_size - self.camera_width))
+        self.camera_y = max(0, min(world_y - self.camera_height // 2,
+                                 self.map_height * self.tile_size - self.camera_height))
+        
+        # Always update visible objects when using minimap
+        self.camera_moved = True
+        self.update_visible_area()
+        self.update_visible_objects()
+
+    def update_visible_area(self):
+        """Update the visible area rectangle based on camera position"""
+        self.visible_area = pygame.Rect(
+            self.camera_x,
+            self.camera_y,
+            self.camera_width,
+            self.camera_height
+        )
+
+    def handle_next_action(self) -> Optional[Any]:
+        """Handle the next_action string and return the appropriate screen or None."""
+        if not self.next_action:
+            return None
+            
+        action = self.next_action
+        self.next_action = None
+        
+        if action == "main_menu":
+            from Core.Menu.main_menu import MainMenu
+            return MainMenu(self.screen)
+        elif action == "options":
+            raise NotImplementedError("Options menu not yet implemented")
+        elif action == "quit":
+            pygame.quit()
+            sys.exit()
+            
+        return None
+
+    def update_visible_objects(self):
+        """Update the list of visible objects only when camera moves significantly"""
+        if not self.camera_moved:
+            return
+
+        self.visible_objects_cache = []
+        
+        # Calculate visible area in world coordinates with padding
+        visible_left = self.camera_x - 100
+        visible_right = self.camera_x + self.screen_width + 100
+        visible_top = self.camera_y - 100
+        visible_bottom = self.camera_y + self.screen_height + 100
+        
+        # Get the grid cells that intersect with the visible area
+        start_cell = self.get_grid_cell(visible_left, visible_top)
+        end_cell = self.get_grid_cell(visible_right, visible_bottom)
+        
+        # Pre-calculate tile size and half tile size for faster access
+        tile_size = self.tile_size
+        half_tile = tile_size // 2
+        
+        # Pre-calculate camera position for screen coordinate conversion
+        camera_x = self.camera_x
+        camera_y = self.camera_y
+        
+        # Pre-calculate screen dimensions for bounds checking
+        screen_width = self.screen_width
+        screen_height = self.screen_height
+        
+        # Check each grid cell in the visible area
+        for cell_x in range(start_cell[0], end_cell[0] + 1):
+            for cell_y in range(start_cell[1], end_cell[1] + 1):
+                cell = (cell_x, cell_y)
+                if cell in self.spatial_grid:
+                    for obj in self.spatial_grid[cell]:
+                        # Calculate object's world position in pixels
+                        obj_world_x = obj['x'] * tile_size
+                        obj_world_y = obj['y'] * tile_size
+                        
+                        # Get object dimensions
+                        obj_width = obj['image'].get_width()
+                        obj_height = obj['image'].get_height()
+                        
+                        # Quick bounds check for object visibility
+                        if (obj_world_x + obj_width < visible_left or 
+                            obj_world_x > visible_right or
+                            obj_world_y + obj_height < visible_top or
+                            obj_world_y > visible_bottom):
+                            continue
+                        
+                        # Calculate object's screen position
+                        obj_screen_x = obj_world_x - camera_x
+                        obj_screen_y = obj_world_y - camera_y
+                        
+                        # Calculate offset for centering
+                        offset = obj['offset'] - half_tile
+                        
+                        # Final screen position
+                        final_x = obj_screen_x - offset
+                        final_y = obj_screen_y - offset
+                        
+                        # Only add objects that are actually visible on screen
+                        if (final_x + obj_width > 0 and final_x < screen_width and
+                            final_y + obj_height > 0 and final_y < screen_height):
+                            self.visible_objects_cache.append({
+                                'obj': obj,
+                                'screen_x': final_x,
+                                'screen_y': final_y
+                            })
+
+        # Sort visible objects by z-index, then y, then x
+        self.visible_objects_cache.sort(key=lambda x: (x['obj']['z_index'], x['obj']['y'], x['obj']['x']))
+        self.camera_moved = False
+
+    def calculate_angle(self, start_x, start_y, target_x, target_y):
+        """Calculate the angle between two points in degrees"""
+        dx = target_x - start_x
+        dy = target_y - start_y
+        # Convert to degrees and adjust for pygame's coordinate system
+        # Add 90 degrees to rotate the coordinate system so 0 points down
+        angle = math.degrees(math.atan2(-dy, dx)) + 90
+        # Normalize to 0-359
+        angle = (angle + 360) % 360
+        return angle
+
+    def get_nearest_direction(self, angle, directions):
+        """Get the nearest direction from the available directions"""
+        # Find the closest direction by comparing the absolute difference
+        closest = min(directions, key=lambda x: min(abs(x - angle), 360 - abs(x - angle)))
+        return closest
+
+    def handle_attack_command(self, attack_result):
+        """Handle an attack command from the panel"""
+        attacker = attack_result['attacker']
+        target = attack_result['target']
+        
+        if attack_result['in_range']:
+            # Start attack immediately
+            self.active_attacks[attacker['unique_id']] = {
+                'attacker_type': attacker['type'],
+                'attacker_id': attacker['id'],
+                'attacker_unique_id': attacker['unique_id'],
+                'target_type': target['type'],
+                'target_id': target['id'],
+                'target_unique_id': target['unique_id'],
+                'last_attack_time': pygame.time.get_ticks() - 1000,
+                'cooldown': 1000  # Default cooldown in milliseconds
+            }
+            # Set attacker's animation state to 'fire'
+            # self.animation_manager.set_animation_state(attacker['unique_id'], 'fire')
+        elif attack_result['is_unit']:
+            # TODO: Handle unit movement towards target
+            pass
+        else:
+            # Building can't reach target, ignore attack
+            pass
+
+    def handle_target_selection(self, target_object):
+        """Handle target selection for attack"""
+        if not self.attacker:
+            return None
+            
+        # Calculate distance in tiles
+        dx = target_object['x'] - self.attacker['x']
+        dy = target_object['y'] - self.attacker['y']
+        distance = (dx * dx + dy * dy) ** 0.5
+        
+        # Get attacker's metadata
+        metadata = self.object_collection.get_object_metadata(self.attacker['type'], self.attacker['id'])
+        
+        if not metadata:
+            return None
+            
+        properties = metadata.get('properties', {})
+        attack_range = properties.get('attack_range', 0)
+        
+        if distance <= attack_range:
+            return {
+                'action': 'attack',
+                'attacker': self.attacker,
+                'target': target_object,
+                'in_range': True,
+                'is_unit': properties.get('is_unit', False)
+            }
+        else:
+            return {
+                'action': 'attack',
+                'attacker': self.attacker,
+                'target': target_object,
+                'in_range': False,
+                'is_unit': properties.get('is_unit', False)
+            }
 
     def handle_events(self, event):
         if event.type == pygame.QUIT:
@@ -524,58 +736,6 @@ class Game(BaseScreen):
                     self.update_camera_from_minimap(mouse_pos)
                 self.last_mouse_pos = mouse_pos
 
-    def update_camera_from_minimap(self, mouse_pos):
-        # Calculate the click position relative to the minimap
-        rel_x = mouse_pos[0] - self.minimap.x
-        rel_y = mouse_pos[1] - self.minimap.y
-        
-        # Convert minimap coordinates to world coordinates
-        world_x = int(rel_x / self.minimap.scale)
-        world_y = int(rel_y / self.minimap.scale)
-        
-        # Store old camera position to check if it changed
-        old_camera_x = self.camera_x
-        old_camera_y = self.camera_y
-        
-        # Center the camera on the clicked position
-        self.camera_x = max(0, min(world_x - self.camera_width // 2, 
-                                 self.map_width * self.tile_size - self.camera_width))
-        self.camera_y = max(0, min(world_y - self.camera_height // 2,
-                                 self.map_height * self.tile_size - self.camera_height))
-        
-        # Always update visible objects when using minimap
-        self.camera_moved = True
-        self.update_visible_area()
-        self.update_visible_objects()
-
-    def update_visible_area(self):
-        """Update the visible area rectangle based on camera position"""
-        self.visible_area = pygame.Rect(
-            self.camera_x,
-            self.camera_y,
-            self.camera_width,
-            self.camera_height
-        )
-
-    def handle_next_action(self) -> Optional[Any]:
-        """Handle the next_action string and return the appropriate screen or None."""
-        if not self.next_action:
-            return None
-            
-        action = self.next_action
-        self.next_action = None
-        
-        if action == "main_menu":
-            from Core.Menu.main_menu import MainMenu
-            return MainMenu(self.screen)
-        elif action == "options":
-            raise NotImplementedError("Options menu not yet implemented")
-        elif action == "quit":
-            pygame.quit()
-            sys.exit()
-            
-        return None
-
     def update(self):
         # Get mouse position once
         mouse_pos = pygame.mouse.get_pos()
@@ -612,9 +772,9 @@ class Game(BaseScreen):
 
         # Process active attacks
         for attack in list(self.active_attacks.items()):
-            attacker_id = attack[0]
+            attacker_unique_id = attack[0]
             attack_data = attack[1]
-            target_id = attack_data['target_id']
+            target_unique_id = attack_data['target_unique_id']
             
             # Get attacker and target objects
             attacker = None
@@ -622,13 +782,13 @@ class Game(BaseScreen):
             
             # Find attacker
             for obj in self.objects:
-                if obj['type'] == attack_data['attacker_type'] and obj['id'] == attacker_id:
+                if obj['unique_id'] == attacker_unique_id:
                     attacker = obj
                     break
                     
             # Find target
             for obj in self.objects:
-                if obj['type'] == attack_data['target_type'] and obj['id'] == target_id:
+                if obj['unique_id'] == target_unique_id:
                     target = obj
                     break
             
@@ -636,7 +796,7 @@ class Game(BaseScreen):
                 # Get attacker metadata
                 attacker_metadata = self.object_collection.get_object_metadata(attacker['type'], attacker['id'])
                 if not attacker_metadata:
-                    del self.active_attacks[attacker_id]
+                    del self.active_attacks[attacker_unique_id]
                     continue
                     
                 # Get attack range from properties
@@ -651,21 +811,24 @@ class Game(BaseScreen):
                 # Check if target is still in range
                 if distance > attack_range:
                     # Stop the attack
-                    self.animation_manager.set_animation_state(attacker_id, "static")
-                    del self.active_attacks[attacker_id]
+                    self.animation_manager.set_animation_state(attacker_unique_id, "static")
+                    del self.active_attacks[attacker_unique_id]
                     continue
                 
                 # Update attack cooldown
                 current_time = pygame.time.get_ticks()
                 if current_time - attack_data['last_attack_time'] >= attack_data['cooldown']:
-                    # Perform attack
-                    self.animation_manager.set_animation_state(attacker_id, "fire")
-                    attack_data['last_attack_time'] = current_time
-                    
                     # Calculate angle for projectile
                     angle = self.calculate_angle(attacker['x'], attacker['y'], target['x'], target['y'])
                     nearest_direction = self.get_nearest_direction(angle, attacker_metadata['visuals']['directions'])
-                    
+                    attacker['turret_direction'] = self.animation_manager.get_current_direction(attacker_unique_id)
+                    if(nearest_direction != attacker['turret_direction']):
+                        self.animation_manager.set_target_direction(attacker_unique_id, nearest_direction)
+                    else:
+                        # Perform attack
+                        self.animation_manager.set_animation_state(attacker_unique_id, "fire")
+                        attack_data['last_attack_time'] = current_time
+
                     # Create projectile
                     projectile = {
                         'type': 'projectile',
@@ -678,7 +841,10 @@ class Game(BaseScreen):
                         'damage': properties.get('damage', 0),
                         'direction': nearest_direction
                     }
-                    self.objects.append(projectile)
+                    # self.objects.append(projectile)
+            else:
+                self.animation_manager.set_animation_state(attacker_unique_id, "static")
+                del self.active_attacks[attacker_unique_id]
 
         # Handle next_action and check for screen transitions
         next_screen = self.handle_next_action()
@@ -687,83 +853,6 @@ class Game(BaseScreen):
 
         # Update panel animations
         self.vertical_panel.update()
-
-        # Update the map surface
-        self.render()
-
-    def update_visible_objects(self):
-        """Update the list of visible objects only when camera moves significantly"""
-        if not self.camera_moved:
-            return
-
-        self.visible_objects_cache = []
-        
-        # Calculate visible area in world coordinates with padding
-        visible_left = self.camera_x - 100
-        visible_right = self.camera_x + self.screen_width + 100
-        visible_top = self.camera_y - 100
-        visible_bottom = self.camera_y + self.screen_height + 100
-        
-        # Get the grid cells that intersect with the visible area
-        start_cell = self.get_grid_cell(visible_left, visible_top)
-        end_cell = self.get_grid_cell(visible_right, visible_bottom)
-        
-        # Pre-calculate tile size and half tile size for faster access
-        tile_size = self.tile_size
-        half_tile = tile_size // 2
-        
-        # Pre-calculate camera position for screen coordinate conversion
-        camera_x = self.camera_x
-        camera_y = self.camera_y
-        
-        # Pre-calculate screen dimensions for bounds checking
-        screen_width = self.screen_width
-        screen_height = self.screen_height
-        
-        # Check each grid cell in the visible area
-        for cell_x in range(start_cell[0], end_cell[0] + 1):
-            for cell_y in range(start_cell[1], end_cell[1] + 1):
-                cell = (cell_x, cell_y)
-                if cell in self.spatial_grid:
-                    for obj in self.spatial_grid[cell]:
-                        # Calculate object's world position in pixels
-                        obj_world_x = obj['x'] * tile_size
-                        obj_world_y = obj['y'] * tile_size
-                        
-                        # Get object dimensions
-                        obj_width = obj['image'].get_width()
-                        obj_height = obj['image'].get_height()
-                        
-                        # Quick bounds check for object visibility
-                        if (obj_world_x + obj_width < visible_left or 
-                            obj_world_x > visible_right or
-                            obj_world_y + obj_height < visible_top or
-                            obj_world_y > visible_bottom):
-                            continue
-                        
-                        # Calculate object's screen position
-                        obj_screen_x = obj_world_x - camera_x
-                        obj_screen_y = obj_world_y - camera_y
-                        
-                        # Calculate offset for centering
-                        offset = obj['offset'] - half_tile
-                        
-                        # Final screen position
-                        final_x = obj_screen_x - offset
-                        final_y = obj_screen_y - offset
-                        
-                        # Only add objects that are actually visible on screen
-                        if (final_x + obj_width > 0 and final_x < screen_width and
-                            final_y + obj_height > 0 and final_y < screen_height):
-                            self.visible_objects_cache.append({
-                                'obj': obj,
-                                'screen_x': final_x,
-                                'screen_y': final_y
-                            })
-
-        # Sort visible objects by z-index, then y, then x
-        self.visible_objects_cache.sort(key=lambda x: (x['obj']['z_index'], x['obj']['y'], x['obj']['x']))
-        self.camera_moved = False
 
     def render(self):
         # Clear the screen before rendering
@@ -832,12 +921,10 @@ class Game(BaseScreen):
                     current_direction = self.get_nearest_direction(angle, metadata['visuals']['directions'])
             
             # Get current animation frame
-            current_frame = self.animation_manager.get_current_frame(
+            current_frame = self.animation_manager.get_next_frame(
                 obj['id'],
                 obj['type'],
-                "static",
-                current_direction,
-                obj.get('animation_speed', 0)  # Use get() with default value
+                obj['unique_id']
             )
             
             # Check if object should be destroyed
@@ -878,10 +965,7 @@ class Game(BaseScreen):
                 current_frame = self.animation_manager.get_current_frame(
                     obj['id'],
                     obj['type'],
-                    "static",
-                    0,
-                    obj['animation_speed']
-                )
+                    obj['unique_id'])
                 
                 obj_width = current_frame.get_width() if current_frame and current_frame != "DESTROYED" else obj['image'].get_width()
                 obj_height = current_frame.get_height() if current_frame and current_frame != "DESTROYED" else obj['image'].get_height()
@@ -975,79 +1059,3 @@ class Game(BaseScreen):
         else:
             pygame.display.flip()
 
-    def calculate_angle(self, start_x, start_y, target_x, target_y):
-        """Calculate the angle between two points in degrees"""
-        dx = target_x - start_x
-        dy = target_y - start_y
-        # Convert to degrees and adjust for pygame's coordinate system
-        # Add 90 degrees to rotate the coordinate system so 0 points down
-        angle = math.degrees(math.atan2(-dy, dx)) + 90
-        # Normalize to 0-359
-        angle = (angle + 360) % 360
-        return angle
-
-    def get_nearest_direction(self, angle, directions):
-        """Get the nearest direction from the available directions"""
-        # Find the closest direction by comparing the absolute difference
-        closest = min(directions, key=lambda x: min(abs(x - angle), 360 - abs(x - angle)))
-        return closest
-
-    def handle_attack_command(self, attack_result):
-        """Handle an attack command from the panel"""
-        attacker = attack_result['attacker']
-        target = attack_result['target']
-        
-        if attack_result['in_range']:
-            # Start attack immediately
-            self.active_attacks[attacker['id']] = {
-                'attacker_type': attacker['type'],
-                'attacker_id': attacker['id'],
-                'target_type': target['type'],
-                'target_id': target['id'],
-                'last_attack_time': pygame.time.get_ticks(),
-                'cooldown': 1000  # Default cooldown in milliseconds
-            }
-            # Set attacker's animation state to 'fire'
-            self.animation_manager.set_animation_state(attacker['id'], 'fire')
-        elif attack_result['is_unit']:
-            # TODO: Handle unit movement towards target
-            pass
-        else:
-            # Building can't reach target, ignore attack
-            pass
-
-    def handle_target_selection(self, target_object):
-        """Handle target selection for attack"""
-        if not self.attacker:
-            return None
-            
-        # Calculate distance in tiles
-        dx = target_object['x'] - self.attacker['x']
-        dy = target_object['y'] - self.attacker['y']
-        distance = (dx * dx + dy * dy) ** 0.5
-        
-        # Get attacker's metadata
-        metadata = self.object_collection.get_object_metadata(self.attacker['type'], self.attacker['id'])
-        
-        if not metadata:
-            return None
-            
-        properties = metadata.get('properties', {})
-        attack_range = properties.get('attack_range', 0)
-        
-        if distance <= attack_range:
-            return {
-                'action': 'attack',
-                'attacker': self.attacker,
-                'target': target_object,
-                'in_range': True,
-                'is_unit': properties.get('is_unit', False)
-            }
-        else:
-            return {
-                'action': 'attack',
-                'attacker': self.attacker,
-                'target': target_object,
-                'in_range': False,
-                'is_unit': properties.get('is_unit', False)
-            }
