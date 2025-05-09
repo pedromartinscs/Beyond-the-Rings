@@ -3,6 +3,7 @@ import sys
 import os
 import math
 import json
+from Core.Game.missile import Missile
 from Core.UI.base_screen import BaseScreen
 from Core.UI.panel import Panel
 from Core.UI.minimap import Minimap
@@ -38,6 +39,10 @@ class Game(BaseScreen):
         # Initialize attack state tracking
         self.active_attacks = {}  # Dictionary to track active attacks: {attacker_id: {'target_id': target_id, 'last_attack_time': time, 'cooldown': cooldown}}
         self.attack_cooldown = 1000  # Attack cooldown in milliseconds
+
+        # Initialize missile state tracking
+        self.missiles = []  # List to track active missiles
+        self.missiles_images = self.load_missiles_images()
 
         # Initialize panels
         self.panels = []
@@ -111,7 +116,7 @@ class Game(BaseScreen):
         # Camera variables
         self.camera_x = 0
         self.camera_y = 0
-        self.camera_speed = 5
+        self.camera_speed = 3
         self.camera_width = self.screen_width
         self.camera_height = self.screen_height
 
@@ -189,6 +194,14 @@ class Game(BaseScreen):
             self.spatial_grid[cell].remove(obj)
             if not self.spatial_grid[cell]:  # If cell is empty, remove it
                 del self.spatial_grid[cell]
+
+    def load_missiles_images(self):
+        # Load missiles from file
+        missile_images = []
+        for i in [0, 45, 90, 135, 180, 225, 270, 315]:
+            missile_image = pygame.image.load(f"Images/Missiles/{str(i)}.png")
+            missile_images.append(missile_image)
+        return missile_images
 
     def load_map(self, file_path):
         try:
@@ -828,23 +841,19 @@ class Game(BaseScreen):
                         # Perform attack
                         self.animation_manager.set_animation_state(attacker_unique_id, "fire")
                         attack_data['last_attack_time'] = current_time
-
-                    # Create projectile
-                    projectile = {
-                        'type': 'projectile',
-                        'id': len(self.objects) + 1,
-                        'x': attacker['x'],
-                        'y': attacker['y'],
-                        'target_x': target['x'],
-                        'target_y': target['y'],
-                        'speed': 0.1,
-                        'damage': properties.get('damage', 0),
-                        'direction': nearest_direction
-                    }
-                    # self.objects.append(projectile)
+                        # Convert tile coordinates to world coordinates
+                        attacker_world_x, attacker_world_y = self.calculate_missile_origin(attacker)
+                        target_world_x = target['x'] * self.tile_size + self.tile_size // 2
+                        target_world_y = target['y'] * self.tile_size + self.tile_size // 2
+                        missile = Missile((attacker_world_x, attacker_world_y), (target_world_x, target_world_y), 10, nearest_direction)
+                        self.missiles.append(missile)
             else:
                 self.animation_manager.set_animation_state(attacker_unique_id, "static")
                 del self.active_attacks[attacker_unique_id]
+        
+        # Process missiles
+        for missile in self.missiles:
+            missile.update()
 
         # Handle next_action and check for screen transitions
         next_screen = self.handle_next_action()
@@ -853,6 +862,19 @@ class Game(BaseScreen):
 
         # Update panel animations
         self.vertical_panel.update()
+
+    def calculate_missile_origin(self, attacker):
+        angle_rad = math.radians(attacker['turret_direction'])  # Convert degrees to radians
+        x = round(math.sin(angle_rad) * 16) + self.tile_size // 2
+        y = round(math.cos(angle_rad) * 16) + self.tile_size // 2
+        if(attacker['type'] == 'building'):
+            attacker_world_x = attacker['x'] * self.tile_size + x
+            attacker_world_y = attacker['y'] * self.tile_size + y
+        else:
+            attacker_world_x = attacker['x'] * self.tile_size + self.tile_size // 2
+            attacker_world_y = attacker['y'] * self.tile_size + self.tile_size // 2
+        
+        return attacker_world_x,attacker_world_y
 
     def render(self):
         # Clear the screen before rendering
@@ -895,30 +917,12 @@ class Game(BaseScreen):
         # Blit the visible portion of the pre-rendered map
         self.screen.blit(self.map_surface, dest_rect, source_rect)
 
-        # Pre-calculate mouse position for object selection
-        mouse_x, mouse_y = pygame.mouse.get_pos()
-
         # First pass: Draw all non-selected objects and back parts of selection rings
         objects_to_remove = []
         for obj_data in self.visible_objects_cache:
             obj = obj_data['obj']
             screen_x = obj_data['screen_x']
             screen_y = obj_data['screen_y']
-            
-            # Calculate object's world position in pixels
-            obj_world_x = obj['x'] * self.tile_size
-            obj_world_y = obj['y'] * self.tile_size
-            
-            # For turrets (building00003), use default direction unless selected
-            current_direction = 0
-            if obj['type'] == 'building' and obj['id'] == 3 and self.selected_object == obj:
-                # Calculate angle to mouse for selected turret
-                mouse_world_x = mouse_x + self.camera_x
-                mouse_world_y = mouse_y + self.camera_y
-                angle = self.calculate_angle(obj_world_x, obj_world_y, mouse_world_x, mouse_world_y)
-                metadata = self.animation_manager.load_object_metadata(obj['type'], obj['id'])
-                if metadata and 'visuals' in metadata and 'directions' in metadata['visuals']:
-                    current_direction = self.get_nearest_direction(angle, metadata['visuals']['directions'])
             
             # Get current animation frame
             current_frame = self.animation_manager.get_next_frame(
@@ -976,6 +980,14 @@ class Game(BaseScreen):
                 rect = pygame.Rect(x - ring_radius, y - ring_radius * 0.7, ring_radius * 2, ring_radius * 1.4)
                 pygame.draw.arc(self.screen, self.selection_ring_color, rect,
                               -math.pi/2, math.pi/2, self.selection_ring_width)
+        
+        # Render missiles
+        for missile in self.missiles:
+            missile.render(self.screen, self.missiles_images[missile.orientation // 45])
+            if missile.finished:
+                self.missiles.remove(missile)
+            else:
+                self.dirty_rects.append(pygame.Rect(missile.position[0] - 8, missile.position[1] - 8, 16, 16))
 
         # Remove destroyed objects
         for obj in objects_to_remove:

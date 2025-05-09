@@ -152,7 +152,7 @@ class AnimationManager:
 
         # For fire animations, use a faster speed (50ms per frame)
         if animation_type == "fire":
-            animation_speed = 50
+            animation_speed = 25
 
         # Update frame based on animation speed
         current_time = pygame.time.get_ticks()

@@ -76,7 +76,7 @@ CURSOR_TYPES = {
 
 # Game settings
 TILE_SIZE = 32
-CAMERA_SPEED = 8
+CAMERA_SPEED = 5
 MINIMAP_SIZE = 150
 
 # Colors
