@@ -864,8 +864,10 @@ class Game(BaseScreen):
         self.vertical_panel.update()
 
     def calculate_missile_origin(self, attacker):
-        attacker_world_x = attacker['x'] * self.tile_size + self.tile_size // 2
-        attacker_world_y = attacker['y'] * self.tile_size + self.tile_size // 2
+        angle_map_x = {0: 0, 45: 13, 90: 32, 135: 21, 180: 0, 225: -21, 270: -32, 315: -13}
+        angle_map_y = {0: -7, 45: -8, 90: -16, 135: -32, 180: -32, 225: -32, 270: -16, 315: -8}
+        attacker_world_x = attacker['x'] * self.tile_size + self.tile_size // 2 + angle_map_x[attacker['turret_direction']]
+        attacker_world_y = attacker['y'] * self.tile_size + self.tile_size // 2 + angle_map_y[attacker['turret_direction']]
         
         return attacker_world_x,attacker_world_y
 
