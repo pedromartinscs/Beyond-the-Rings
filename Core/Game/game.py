@@ -978,11 +978,14 @@ class Game(BaseScreen):
         
         # Render missiles
         for missile in self.missiles:
-            missile.render(self.screen, self.missiles_images[missile.orientation // 45])
+            missile.render(self.screen, self.missiles_images[missile.orientation // 45], self.camera_x, self.camera_y)
             if missile.finished:
                 self.missiles.remove(missile)
             else:
-                self.dirty_rects.append(pygame.Rect(missile.position[0] - 8, missile.position[1] - 8, 16, 16))
+                # Adjust missile rect for camera offset
+                missile_x = missile.position[0] - self.camera_x
+                missile_y = missile.position[1] - self.camera_y
+                self.dirty_rects.append(pygame.Rect(missile_x - 8, missile_y - 8, 16, 16))
 
         # Remove destroyed objects
         for obj in objects_to_remove:

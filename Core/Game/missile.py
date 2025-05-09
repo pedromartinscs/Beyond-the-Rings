@@ -39,10 +39,16 @@ class Missile:
         # atualiza partículas
         self.smoke = [s for s in self.smoke if s.update()]
 
-    def render(self, surface, image):
+    def render(self, surface, image, camera_x=0, camera_y=0):
         # desenha fumaça primeiro
         for s in self.smoke:
-            s.draw(surface)
+            # Adjust smoke position for camera offset
+            smoke_x = s.position[0] - camera_x
+            smoke_y = s.position[1] - camera_y
+            s.draw(surface, (smoke_x, smoke_y))
 
         if not self.finished:
-            surface.blit(image, (self.position[0] - 8, self.position[1] - 8))
+            # Adjust missile position for camera offset
+            missile_x = self.position[0] - camera_x
+            missile_y = self.position[1] - camera_y
+            surface.blit(image, (missile_x - 8, missile_y - 8))
