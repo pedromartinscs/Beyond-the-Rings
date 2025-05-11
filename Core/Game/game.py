@@ -3,6 +3,7 @@ import sys
 import os
 import math
 import json
+from Core.Game.explosion import Explosion
 from Core.Game.missile import Missile
 from Core.UI.base_screen import BaseScreen
 from Core.UI.panel import Panel
@@ -43,6 +44,8 @@ class Game(BaseScreen):
         # Initialize missile state tracking
         self.missiles = []  # List to track active missiles
         self.missiles_images = self.load_missiles_images()
+        self.missile_explosion_images = self.load_missile_explosion_images()
+        self.active_explosions = []
 
         # Initialize panels
         self.panels = []
@@ -202,6 +205,14 @@ class Game(BaseScreen):
             missile_image = pygame.image.load(f"Images/Missiles/{str(i)}.png")
             missile_images.append(missile_image)
         return missile_images
+    
+    def load_missile_explosion_images(self):
+        explosion_sheet = pygame.image.load("Images/Missiles/Explosion/spritesheet.png").convert_alpha()
+        explosion_images = []
+        for i in range(3):
+            frame = explosion_sheet.subsurface((i * 32, 0, 32, 32))
+            explosion_images.append(frame)
+        return explosion_images
 
     def load_map(self, file_path):
         try:
@@ -277,6 +288,7 @@ class Game(BaseScreen):
                         health = int(obj_data[4])
                         z_index = int(obj_data[5])
                         damage = int(obj_data[6])
+                        current_health = health - damage
                         
                         if 0 <= x < width and 0 <= y < height:
                             # Load object metadata from JSON
@@ -311,12 +323,12 @@ class Game(BaseScreen):
                                     'y': y,
                                     'type': obj_type,
                                     'id': obj_id,
-                                    'health': health,
+                                    'health': current_health,
                                     'max_health': max_health,  # Add max_health property
                                     'z_index': z_index,
                                     'image': obj_image,
                                     'offset': 64 if obj_image.get_width() == 128 else 32,
-                                    'damage': damage,
+                                    'damage': metadata.get('properties', {}).get('damage', 1),
                                     'unique_id': str(x) + '_' + str(y) + '_' + obj_type + '_' + str(obj_id),
                                     'name': metadata.get('name', 'Unknown'),
                                     'animation_speed': metadata.get('visuals', {}).get('animation_speed', 0),
@@ -845,7 +857,7 @@ class Game(BaseScreen):
                         attacker_world_x, attacker_world_y = self.calculate_missile_origin(attacker)
                         target_world_x = target['x'] * self.tile_size + self.tile_size // 2
                         target_world_y = target['y'] * self.tile_size + self.tile_size // 2
-                        missile = Missile((attacker_world_x, attacker_world_y), (target_world_x, target_world_y), 10, nearest_direction)
+                        missile = Missile((attacker_world_x, attacker_world_y), (target_world_x, target_world_y), attacker, target, 10, nearest_direction)
                         self.missiles.append(missile)
             else:
                 self.animation_manager.set_animation_state(attacker_unique_id, "static")
@@ -854,6 +866,10 @@ class Game(BaseScreen):
         # Process missiles
         for missile in self.missiles:
             missile.update()
+        
+        # Process explosions
+        for explosion in self.active_explosions:
+            explosion.update()
 
         # Handle next_action and check for screen transitions
         next_screen = self.handle_next_action()
@@ -980,12 +996,21 @@ class Game(BaseScreen):
         for missile in self.missiles:
             missile.render(self.screen, self.missiles_images[missile.orientation // 45], self.camera_x, self.camera_y)
             if missile.finished:
+                self.active_explosions.append(Explosion(missile.position, self.missile_explosion_images))
+                if missile.target and missile.target['max_health'] != -1:
+                    missile.target['health'] -= missile.origin.get('damage', 1)
                 self.missiles.remove(missile)
             else:
                 # Adjust missile rect for camera offset
                 missile_x = missile.position[0] - self.camera_x
                 missile_y = missile.position[1] - self.camera_y
                 self.dirty_rects.append(pygame.Rect(missile_x - 8, missile_y - 8, 16, 16))
+
+        # Process explosions
+        for explosion in self.active_explosions:
+            explosion.render(self.screen, self.camera_x, self.camera_y)
+            if explosion.finished:
+                self.active_explosions.remove(explosion)
 
         # Remove destroyed objects
         for obj in objects_to_remove:

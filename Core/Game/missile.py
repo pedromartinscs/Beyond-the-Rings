@@ -5,17 +5,19 @@ import pygame
 from Core.Game.missile_smoke_particle import SmokeParticle
 
 class Missile:
-    def __init__(self, origin, target, speed=4, orientation=0):
+    def __init__(self, origin_position, target_position, origin, target, speed=4, orientation=0):
+        self.origin_position = origin_position
+        self.target_position = target_position
         self.origin = origin
         self.target = target
-        self.position = list(origin)
+        self.position = list(origin_position)
         self.speed = speed
         self.finished = False
         self.smoke = []
         self.orientation = orientation
         
-        dx = target[0] - origin[0]
-        dy = target[1] - origin[1]
+        dx = target_position[0] - origin_position[0]
+        dy = target_position[1] - origin_position[1]
         dist = math.hypot(dx, dy)
         self.direction = (dx / dist, dy / dist)
 
@@ -28,8 +30,8 @@ class Missile:
         self.position[1] += self.direction[1] * self.speed
 
         # distância até o alvo
-        dx = self.target[0] - self.position[0]
-        dy = self.target[1] - self.position[1]
+        dx = self.target_position[0] - self.position[0]
+        dy = self.target_position[1] - self.position[1]
         if math.hypot(dx, dy) < self.speed:
             self.finished = True
 
