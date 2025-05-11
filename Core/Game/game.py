@@ -209,7 +209,7 @@ class Game(BaseScreen):
     def load_missile_explosion_images(self):
         explosion_sheet = pygame.image.load("Images/Missiles/Explosion/spritesheet.png").convert_alpha()
         explosion_images = []
-        for i in range(3):
+        for i in range(4):
             frame = explosion_sheet.subsurface((i * 32, 0, 32, 32))
             explosion_images.append(frame)
         return explosion_images
