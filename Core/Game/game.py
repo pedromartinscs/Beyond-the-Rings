@@ -315,8 +315,8 @@ class Game(BaseScreen):
                                 # Get object metadata
                                 metadata = self.object_collection.get_object_metadata(obj_type, obj_id)
                                 
-                                # Get max_health from metadata, default to -1 (infinite) for resources
-                                max_health = metadata.get('max_health', -1 if obj_type == 'resource' else 100)
+                                # Get max_health from metadata properties, default to -1 for resources or 100 for others
+                                max_health = metadata.get('properties', {}).get('health', -1 if obj_type == 'resource' else 100)
                                 
                                 obj = {
                                     'x': x,
