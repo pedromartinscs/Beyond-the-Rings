@@ -1,0 +1,36 @@
+# Ignore Python cache files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore VS Code files
+.vscode/
+
+# Ignore MacOS system files
+.DS_Store
+
+# Ignore IDE settings
+.idea/
+
+# Ignore log files
+*.log
+
+# Ignore test result files
+*.coverage
+*.tox/
+*.nox/
+*.coverage.*
+nosetests.xml
+coverage.xml
+*.hypothesis/
+
+# Ignore build and dist folders
+build/
+dist/
+*.egg-info/
+
+# Ignore virtual environment folders
+venv/
+env/
+ENV/

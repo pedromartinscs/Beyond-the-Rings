@@ -1,0 +1,36 @@
+{
+    "name": "Defense Tower",
+    "description": "Use it to protect surrounding buildings and units.",
+    "properties": {
+        "health": 4000,
+        "damage": 100,
+        "z_index": 1,
+        "attack_range": 12,
+        "is_unit": false,
+        "attack_cooldown": 1000,
+        "attack_type": "projectile"
+    },
+    "abilities": [],
+    "buttons": [
+        {
+            "name": "Attack",
+            "description": "Attack a near by object or unit",
+            "action": "attack"
+        },
+        {
+            "name": "Implode Building",
+            "description": "Self destruct",
+            "action": "destroy"
+        }
+    ],
+    "visuals": {
+        "animation_speed": 100,
+        "static_orientations": 8,
+        "movement_frames": 6,
+        "fire_frames": 4,
+        "destruction_frames": 8,
+        "has_animations": true,
+        "animation_types": ["static", "movement", "fire", "destruction"],
+        "directions": [0, 45, 90, 135, 180, 225, 270, 315]
+    }
+}

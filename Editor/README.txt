@@ -1,0 +1,1 @@
+Use this editor to create maps for Beyond The Rings. Tiles are 32x32 pixels. Maps should contain information about terrain, resources and structures.

@@ -1,0 +1,14 @@
+{
+    "name": "Building",
+    "description": "Default building object",
+    "properties": {
+        "health": 8000,
+        "damage": 0,
+        "z_index": 1
+    },
+    "abilities": [],
+    "visuals": {
+        "animation_speed": 0,
+        "frames": 1
+    }
+}

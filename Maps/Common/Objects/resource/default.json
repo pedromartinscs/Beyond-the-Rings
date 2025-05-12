@@ -1,0 +1,14 @@
+{
+    "name": "Resource",
+    "description": "Default resource object",
+    "properties": {
+        "health": -1,
+        "damage": 0,
+        "z_index": 1
+    },
+    "abilities": [],
+    "visuals": {
+        "animation_speed": 0,
+        "frames": 1
+    }
+}
