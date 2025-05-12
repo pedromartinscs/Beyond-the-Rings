@@ -1,9 +1,14 @@
 # Beyond the Rings
+> ⚙️ Developed entirely by Pedro Martins Costa de Souza — game programmer with experience in .NET, Python, AWS, Docker, and game systems.  
+> 🚀 Currently open to remote opportunities in game development (full-time or freelance).  
+> 📫 Contact: pedro@nancode.com.br | [LinkedIn](https://www.linkedin.com/in/pedromartinscosta/) | [Portfolio](https://github.com/pedromartinscs)
 
 **Beyond the Rings** is a futuristic real-time strategy game set on Titan, one of Saturn's moons. In this game, players control various factions and compete to gather valuable resources like uranium, iron, titanium, natural gas, and water to build their empires. The ultimate goal is to destroy enemy structures and become the dominant force on Titan.
 
 ## Features
 
+- **Built with Python and Pygame**: The game is being developed using Python and the Pygame library, showcasing core concepts like entity systems, resource management, and real-time rendering.
+- **Solo-Developed**: This is a solo project, reflecting full-stack game development skills from architecture to UI.
 - **Multiple Factions**: Play as different countries and organizations such as the United States, China, Russia, BioTech, and more.
 - **Resource Gathering**: Explore Titan to extract resources and use them to build units and structures.
 - **Strategic Combat**: Build armies and engage in tactical combat to defeat your enemies.
