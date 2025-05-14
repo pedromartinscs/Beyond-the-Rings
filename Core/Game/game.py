@@ -599,9 +599,10 @@ class Game(BaseScreen):
                 'target_type': target['type'],
                 'target_id': target['id'],
                 'target_unique_id': target['unique_id'],
-                'last_attack_time': pygame.time.get_ticks() - 1000,
+                'last_attack_time': pygame.time.get_ticks() - 1000, # Allow immediate first attack
                 'cooldown': 1000  # Default cooldown in milliseconds
             }
+            attacker['is_attacking'] = True # Mark the attacker as currently attacking
             # Set attacker's animation state to 'fire'
             # self.animation_manager.set_animation_state(attacker['unique_id'], 'fire')
         elif attack_result['is_unit']:
@@ -846,6 +847,15 @@ class Game(BaseScreen):
                     break
             
             if attacker and target:
+                # Check if the halt action was triggered
+                if attacker.get('is_attacking') is False: # Check if explicitly set to False
+                    self.animation_manager.set_animation_state(attacker_unique_id, "static")
+                    if attacker_unique_id in self.active_attacks:
+                         del self.active_attacks[attacker_unique_id]
+                    # Remove the flag after processing to reset state for future commands
+                    attacker.pop('is_attacking', None) 
+                    continue # Skip further processing for this attack
+
                 # Check if target is already destroyed
                 if target['health'] <= 0 and target.get('max_health', 100) != -1:
                     # Stop attacking destroyed target

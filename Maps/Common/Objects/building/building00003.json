@@ -21,6 +21,16 @@
             "name": "Implode Building",
             "description": "Self destruct",
             "action": "destroy"
+        },
+        {
+            "name": "Halt",
+            "description": "Stop any task performing",
+            "action": "halt"
+        },
+        {
+            "name": "Ore Processor",
+            "description": "Build an ore processor to extract gold or iron and earn credit with it",
+            "action": "build_ore"
         }
     ],
     "visuals": {

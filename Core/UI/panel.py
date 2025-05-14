@@ -475,6 +475,21 @@ class Panel:
             self.cursor_manager.set_cursor('build')
         elif action == 'cancel':
             self.cancel_targeting()
+        elif action == 'destroy':
+            if not self.selected_object:
+                return
+                
+            # Set health to 0 to trigger destruction
+            self.selected_object['health'] = 0
+            # Clear selection since object will be destroyed
+            self.selected_object = None
+            self.selected_object_image = None
+            self.set_selected_object(None)
+        elif action == 'halt':
+            if not self.selected_object:
+                return
+            # Ensure the 'is_attacking' flag is set to False on the selected object.
+            self.selected_object['is_attacking'] = False
 
     def cancel_targeting(self):
         """Cancel targeting mode"""
