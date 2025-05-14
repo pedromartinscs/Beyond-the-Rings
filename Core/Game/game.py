@@ -29,6 +29,11 @@ class Game(BaseScreen):
         pygame.mixer.music.load(self.music_file)
         pygame.mixer.music.play(-1, 0.0)
 
+        # Initialize credit system
+        self.credits = 5000  # Starting credits
+        self.credit_image = pygame.image.load("Images/credit.png").convert_alpha()
+        self.credit_font = pygame.font.Font(None, 32)  # Reduced from 36 to 32 for slightly smaller text
+
         # Initialize object collection before panels
         self.object_collection = ObjectCollection()
         self.objects = []  # Will be populated in load_map
@@ -900,6 +905,29 @@ class Game(BaseScreen):
         
         return attacker_world_x,attacker_world_y
 
+    def add_credits(self, amount):
+        """Add credits to the player's balance"""
+        self.credits += amount
+
+    def remove_credits(self, amount):
+        """Remove credits from the player's balance if possible
+        
+        Returns:
+            bool: True if credits were successfully removed, False if insufficient funds
+        """
+        if self.credits >= amount:
+            self.credits -= amount
+            return True
+        return False
+
+    def has_enough_credits(self, amount):
+        """Check if player has enough credits
+        
+        Returns:
+            bool: True if player has enough credits, False otherwise
+        """
+        return self.credits >= amount
+
     def render(self):
         # Clear the screen before rendering
         self.screen.fill((0, 0, 0))  # Black background
@@ -1062,6 +1090,23 @@ class Game(BaseScreen):
         # Render the panels
         self.vertical_panel.render()
         self.panel.render()
+
+        # Render credits
+        credit_x = 10  # Changed from right to left edge
+        credit_y = 15  # Increased from 10 to 15 to move down slightly
+        self.screen.blit(self.credit_image, (credit_x, credit_y))
+        
+        # Render credit amount
+        credit_text = f"$ {self.credits:,}"  # Format with commas for thousands
+        credit_surface = self.credit_font.render(credit_text, True, (255, 255, 255))
+        # Left align text with small margin
+        text_x = credit_x + 20  # Fixed left margin instead of centering
+        text_y = credit_y + (self.credit_image.get_height() - credit_surface.get_height()) // 2 + 2  # Keep vertical centering with slight downward adjustment
+        self.screen.blit(credit_surface, (text_x, text_y))
+
+        # Add credit display area to dirty rects for updating
+        credit_rect = pygame.Rect(credit_x, credit_y, self.credit_image.get_width(), self.credit_image.get_height())
+        self.dirty_rects.append(credit_rect)
 
         # Render selected object image in the horizontal panel's left area
         if self.panel.current_y < self.screen_height - self.panel.handle_height:
