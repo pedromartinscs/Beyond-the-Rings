@@ -4,7 +4,11 @@
     "properties": {
         "health": 4000,
         "damage": 0,
-        "z_index": 1
+        "z_index": 1,
+		"is_unit": false,
+		"is_ore_gold": false,
+		"is_ore_iron": true,
+		"profit_rate": 27
     },
     "abilities": [],
     "visuals": {

@@ -1,0 +1,17 @@
+{
+    "name": "Iron Ore",
+    "description": "Regular iron ore for mining resources and obtaining credits",
+    "properties": {
+        "health": -1,
+        "damage": 0,
+        "z_index": 1,
+		"profit_rate": 27,
+		"is_ore_gold": false,
+		"is_ore_iron": true
+    },
+    "abilities": [],
+    "visuals": {
+        "animation_speed": 0,
+        "frames": 1
+    }
+}

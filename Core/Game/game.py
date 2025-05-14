@@ -33,6 +33,7 @@ class Game(BaseScreen):
         self.credits = 5000  # Starting credits
         self.credit_image = pygame.image.load("Images/credit.png").convert_alpha()
         self.credit_font = pygame.font.Font(None, 32)  # Reduced from 36 to 32 for slightly smaller text
+        self.last_credit_update = pygame.time.get_ticks()  # Track last credit update time
 
         # Initialize object collection before panels
         self.object_collection = ObjectCollection()
@@ -774,6 +775,24 @@ class Game(BaseScreen):
         # Get mouse position once
         mouse_pos = pygame.mouse.get_pos()
         
+        # Update credits from ore processors
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_credit_update >= 1000:  # Check if a second has passed
+            # Process all buildings that generate credits
+            for obj in self.objects:
+                if obj['type'] == 'building':
+                    # Get building metadata
+                    metadata = self.object_collection.get_object_metadata(obj['type'], obj['id'])
+                    if metadata and 'properties' in metadata:
+                        properties = metadata['properties']
+                        # Check if building is an ore processor
+                        if (properties.get('is_ore_gold', False) or properties.get('is_ore_iron', False)) and obj['health'] > 0:
+                            # Add credits based on profit rate
+                            profit_rate = properties.get('profit_rate', 0)
+                            self.add_credits(profit_rate)
+            
+            self.last_credit_update = current_time
+
         # Optimize camera movement with edge detection
         edge_area = 50  # pixels from edge to trigger camera movement
         move_speed = 15  # Increased from 5 to 15 for faster movement
@@ -884,7 +903,12 @@ class Game(BaseScreen):
         # Process missiles
         for missile in self.missiles:
             missile.update()
-        
+            if missile.finished:
+                self.active_explosions.append(Explosion(missile.position, self.missile_explosion_images))
+                if missile.target and missile.target['max_health'] != -1:
+                    missile.target['health'] -= missile.origin.get('damage', 1)
+                self.missiles.remove(missile)
+
         # Process explosions
         for explosion in self.active_explosions:
             explosion.update()
@@ -990,8 +1014,8 @@ class Game(BaseScreen):
                 # Create a dirty rect for the area that needs to be redrawn
                 obj_width = obj['image'].get_width()
                 obj_height = obj['image'].get_height()
-                # Make the dirty rect slightly larger to ensure clean removal
-                removal_rect = pygame.Rect(screen_x - 2, screen_y - 2, obj_width + 4, obj_height + 4)
+                
+                removal_rect = pygame.Rect(screen_x, screen_y, obj_width, obj_height)
                 self.dirty_rects.append(removal_rect)
                 # Force background redraw for this area
                 map_area = self.map_surface.subsurface(
@@ -1003,7 +1027,7 @@ class Game(BaseScreen):
                 if current_frame != "DESTROYED":
                     self.animation_manager.set_animation_state(obj['unique_id'], "destruction")
                 continue
-            
+
             # If no animation frame is available, use the default image
             obj_image = current_frame if current_frame else obj['image']
             
@@ -1052,28 +1076,86 @@ class Game(BaseScreen):
         # Remove destroyed objects after both rendering passes
         for obj in objects_to_remove:
             if obj in self.objects:
+                # Check if this is an ore processor before removing it
+                if obj['type'] == 'building':
+                    metadata = self.object_collection.get_object_metadata(obj['type'], obj['id'])
+                    if metadata and 'properties' in metadata:
+                        properties = metadata['properties']
+                        # Determine if it's an ore processor and which type
+                        if properties.get('is_ore_iron', False) or properties.get('is_ore_gold', False):
+                            # Create the resource object
+                            resource_id = 0 if properties.get('is_ore_iron', False) else 1  # 0 for iron, 1 for gold
+                            # Try to load resource image in different sizes
+                            resource_image = None
+                            for size in ['small', 'large', 'huge']:
+                                resource_image = self.object_collection.get_object('resource', resource_id, size)
+                                if resource_image:
+                                    break
+                            
+                            if resource_image:
+                                # Get resource metadata
+                                resource_metadata = self.object_collection.get_object_metadata('resource', resource_id)
+                                
+                                # Create new resource object at the same position
+                                new_resource = {
+                                    'x': obj['x'],
+                                    'y': obj['y'],
+                                    'type': 'resource',
+                                    'id': resource_id,
+                                    'health': -1,  # Resources have infinite health
+                                    'max_health': -1,
+                                    'z_index': 1,  # Resources should be at ground level
+                                    'image': resource_image,
+                                    'offset': 32,  # Resources are typically small objects
+                                    'damage': 0,
+                                    'unique_id': f"{obj['x']}_{obj['y']}_resource_{resource_id}",
+                                    'name': resource_metadata.get('name', 'Unknown Resource') if resource_metadata else 'Unknown Resource'
+                                }
+                                
+                                # Add the new resource to objects and spatial grid
+                                self.objects.append(new_resource)
+                                self.add_object_to_grid(new_resource)
+
+                                # Calculate screen position for the new resource
+                                world_x = new_resource['x'] * self.tile_size
+                                world_y = new_resource['y'] * self.tile_size
+                                screen_x = world_x - self.camera_x - new_resource['offset'] + self.tile_size // 2
+                                screen_y = world_y - self.camera_y - new_resource['offset'] + self.tile_size // 2
+
+                                # Create a dirty rect for the new resource area
+                                resource_rect = pygame.Rect(
+                                    screen_x,
+                                    screen_y,
+                                    resource_image.get_width(),
+                                    resource_image.get_height()
+                                )
+                                self.dirty_rects.append(resource_rect)
+
+                                # Force immediate redraw of the background in this area
+                                map_area = self.map_surface.subsurface(
+                                    pygame.Rect(world_x, world_y, self.tile_size, self.tile_size)
+                                ).copy()
+                                self.screen.blit(map_area, (screen_x, screen_y))
+
+                                # We need both camera_moved and update_visible_objects because:
+                                # 1. camera_moved = True forces a complete refresh of visible objects on next frame
+                                # 2. update_visible_objects() immediately updates the cache for this frame
+                                self.camera_moved = True
+                                self.update_visible_objects()
+                
+                # Remove the original object
                 self.objects.remove(obj)
                 self.remove_object_from_grid(obj)  # Remove from spatial grid
+                # Also remove from visible objects cache
+                self.visible_objects_cache = [x for x in self.visible_objects_cache if x['obj'] != obj]
                 if obj == self.selected_object:
                     self.selected_object = None
                     self.selected_object_image = None
                     self.panel.set_selected_object(None)
-                # Force a full update of visible objects on next frame
-                self.camera_moved = True
 
         # Render missiles
         for missile in self.missiles:
             missile.render(self.screen, self.missiles_images[missile.orientation // 45], self.camera_x, self.camera_y)
-            if missile.finished:
-                self.active_explosions.append(Explosion(missile.position, self.missile_explosion_images))
-                if missile.target and missile.target['max_health'] != -1:
-                    missile.target['health'] -= missile.origin.get('damage', 1)
-                self.missiles.remove(missile)
-            else:
-                # Adjust missile rect for camera offset
-                missile_x = missile.position[0] - self.camera_x
-                missile_y = missile.position[1] - self.camera_y
-                self.dirty_rects.append(pygame.Rect(missile_x - 8, missile_y - 8, 16, 16))
 
         # Process explosions
         for explosion in self.active_explosions:
