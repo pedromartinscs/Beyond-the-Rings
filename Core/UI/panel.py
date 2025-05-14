@@ -347,14 +347,15 @@ class Panel:
                 # Draw button
                 button.draw(self.screen)
                 
-                # Draw description if button is hovered
+                # Always draw description box
+                desc_rect = box['rect'].copy()
+                desc_rect.x = middle_x + box['rect'].x
+                desc_rect.y = middle_y + box['rect'].y
+                self.screen.blit(box['surface'], desc_rect)
+                
+                # Store tooltip if button is hovered
                 if button.rect.collidepoint(mouse_pos):
                     self.current_tooltip = box['description']
-                    # Draw description box
-                    desc_rect = box['rect'].copy()
-                    desc_rect.x = middle_x + box['rect'].x
-                    desc_rect.y = middle_y + box['rect'].y
-                    self.screen.blit(box['surface'], desc_rect)
                 
                 # Restore original position
                 button.rect.x = original_x

@@ -721,6 +721,10 @@ class Game(BaseScreen):
                             attack_result = self.panel.handle_target_selection(target_object)
                             if attack_result and attack_result['action'] == 'attack':
                                 self.handle_attack_command(attack_result)
+                        else:
+                            # No objects found, cancel targeting mode
+                            self.panel.cancel_targeting()
+                            self.cursor_manager.set_cursor("normal")
                 # Finally check for object selection, but only if not clicking on panels
                 elif not self.is_click_on_panels(mouse_pos):
                     # Get tile coordinates from mouse position
