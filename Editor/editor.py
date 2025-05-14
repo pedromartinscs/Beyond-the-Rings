@@ -7,7 +7,7 @@ import pygame
 import tkinter as tk
 from tkinter import filedialog
 import random
-from Core.UI.object_collection import ObjectCollection
+from Core.Game.object_collection import ObjectCollection
 import tkinter.messagebox as messagebox
 import json
 

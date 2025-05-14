@@ -608,18 +608,18 @@ class Panel:
         self.screen.blit(self.life_bar_right, (background_x + left_width, bar_y))  # Position right after left image's width
         
         # Draw life bar fill
-        fill_width = int(bar_width * health_percent)
+        fill_width = int((bar_width - 19) * health_percent)  # Adjusted margin to allow complete fill
         if fill_width > 0:
-            # Draw left cap of energy fill, offset to the right by 20 pixels
+            # Draw left cap of energy fill
             energy_x = bar_x + 20  # Start energy fill 20px to the right
             self.screen.blit(self.life_bar_energy_tip, (energy_x, bar_y))
             
             # Draw middle section
-            for x in range(energy_x + 2, bar_x + fill_width - 2):
+            for x in range(energy_x + 2, energy_x + fill_width - 2):
                 self.screen.blit(self.life_bar_energy_stretch, (x, bar_y))
                 
             # Draw right cap
-            self.screen.blit(self.life_bar_energy_tip, (bar_x + fill_width - 2, bar_y))
+            self.screen.blit(self.life_bar_energy_tip, (energy_x + fill_width - 2, bar_y))
         
         # Draw health percentage text centered in the left part
         text_x = background_x + (left_width - text_surface.get_width()) // 2  # Center in left part
