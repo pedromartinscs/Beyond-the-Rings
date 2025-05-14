@@ -818,6 +818,15 @@ class Game(BaseScreen):
                     break
             
             if attacker and target:
+                # Check if target is already destroyed
+                if target['health'] <= 0 and target.get('max_health', 100) != -1:
+                    # Stop attacking destroyed target
+                    self.animation_manager.set_animation_state(attacker_unique_id, "static")
+                    del self.active_attacks[attacker_unique_id]
+                    # Set target to destruction animation if not already
+                    self.animation_manager.set_animation_state(target_unique_id, "destruction")
+                    continue
+
                 # Get attacker metadata
                 attacker_metadata = self.object_collection.get_object_metadata(attacker['type'], attacker['id'])
                 if not attacker_metadata:
@@ -943,8 +952,24 @@ class Game(BaseScreen):
             )
             
             # Check if object should be destroyed
-            if current_frame == "DESTROYED" and obj.get('max_health', 100) != -1:  # Don't destroy if infinite health
+            if (current_frame == "DESTROYED" or 
+                (obj['health'] <= 0 and obj.get('max_health', 100) != -1)):  # Don't destroy if infinite health
                 objects_to_remove.append(obj)
+                # Create a dirty rect for the area that needs to be redrawn
+                obj_width = obj['image'].get_width()
+                obj_height = obj['image'].get_height()
+                # Make the dirty rect slightly larger to ensure clean removal
+                removal_rect = pygame.Rect(screen_x - 2, screen_y - 2, obj_width + 4, obj_height + 4)
+                self.dirty_rects.append(removal_rect)
+                # Force background redraw for this area
+                map_area = self.map_surface.subsurface(
+                    pygame.Rect(screen_x + self.camera_x, screen_y + self.camera_y, obj_width, obj_height)
+                ).copy()
+                self.screen.blit(map_area, (screen_x, screen_y))
+                
+                # Set destruction animation if not already destroyed
+                if current_frame != "DESTROYED":
+                    self.animation_manager.set_animation_state(obj['unique_id'], "destruction")
                 continue
             
             # If no animation frame is available, use the default image
@@ -972,7 +997,7 @@ class Game(BaseScreen):
         # Second pass: Draw front parts of selection rings for selected objects
         for obj_data in self.visible_objects_cache:
             obj = obj_data['obj']
-            if self.selected_object == obj:
+            if obj not in objects_to_remove and self.selected_object == obj:
                 screen_x = obj_data['screen_x']
                 screen_y = obj_data['screen_y']
                 
@@ -991,7 +1016,19 @@ class Game(BaseScreen):
                 rect = pygame.Rect(x - ring_radius, y - ring_radius * 0.7, ring_radius * 2, ring_radius * 1.4)
                 pygame.draw.arc(self.screen, self.selection_ring_color, rect,
                               -math.pi/2, math.pi/2, self.selection_ring_width)
-        
+
+        # Remove destroyed objects after both rendering passes
+        for obj in objects_to_remove:
+            if obj in self.objects:
+                self.objects.remove(obj)
+                self.remove_object_from_grid(obj)  # Remove from spatial grid
+                if obj == self.selected_object:
+                    self.selected_object = None
+                    self.selected_object_image = None
+                    self.panel.set_selected_object(None)
+                # Force a full update of visible objects on next frame
+                self.camera_moved = True
+
         # Render missiles
         for missile in self.missiles:
             missile.render(self.screen, self.missiles_images[missile.orientation // 45], self.camera_x, self.camera_y)
@@ -1011,16 +1048,6 @@ class Game(BaseScreen):
             explosion.render(self.screen, self.camera_x, self.camera_y)
             if explosion.finished:
                 self.active_explosions.remove(explosion)
-
-        # Remove destroyed objects
-        for obj in objects_to_remove:
-            if obj in self.objects:
-                self.objects.remove(obj)
-                self.remove_object_from_grid(obj)  # Remove from spatial grid
-            if obj == self.selected_object:
-                self.selected_object = None
-                self.selected_object_image = None
-                self.panel.set_selected_object(None)
 
         # Render the minimap
         self.minimap.render(self.screen, self.camera_x, self.camera_y, self.camera_width, self.camera_height)
