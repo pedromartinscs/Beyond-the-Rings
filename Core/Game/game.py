@@ -890,7 +890,9 @@ class Game(BaseScreen):
                 
                 # Update attack cooldown
                 current_time = pygame.time.get_ticks()
-                if current_time - attack_data['last_attack_time'] >= attack_data['cooldown']:
+                time_since_last_shot = current_time - attack_data['last_attack_time']
+                attacker['charge_percent'] = min(1.0, time_since_last_shot / attack_data['cooldown'])
+                if time_since_last_shot >= attack_data['cooldown']:
                     # Calculate angle for projectile
                     angle = self.calculate_angle(attacker['x'], attacker['y'], target['x'], target['y'])
                     nearest_direction = self.get_nearest_direction(angle, attacker_metadata['visuals']['directions'])
