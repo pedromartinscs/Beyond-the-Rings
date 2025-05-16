@@ -342,7 +342,8 @@ class Game(BaseScreen):
                                     'is_unit': metadata.get('is_unit', False),
                                     'direction': metadata.get('direction', 0),
                                     'has_turret': metadata.get('has_turret', False),
-                                    'turret_direction': metadata.get('turret_direction', 0)
+                                    'turret_direction': metadata.get('turret_direction', 0),
+                                    'charge_percent': 1.0  # Initialize charge percentage to 0
                                 }
                                 self.objects.append(obj)
                                 self.add_object_to_grid(obj)  # Add object to spatial grid
@@ -1119,7 +1120,8 @@ class Game(BaseScreen):
                                     'offset': 32,  # Resources are typically small objects
                                     'damage': 0,
                                     'unique_id': f"{obj['x']}_{obj['y']}_resource_{resource_id}",
-                                    'name': resource_metadata.get('name', 'Unknown Resource') if resource_metadata else 'Unknown Resource'
+                                    'name': resource_metadata.get('name', 'Unknown Resource') if resource_metadata else 'Unknown Resource',
+                                    'charge_percent': 0  # Initialize charge percentage to 0
                                 }
                                 
                                 # Add the new resource to objects and spatial grid

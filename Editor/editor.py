@@ -696,7 +696,9 @@ class Editor:
                                 'health': health,
                                 'z_index': z_index,
                                 'offset': offset,
-                                'damage': damage  # Use damage from JSON or default to 0
+                                'damage': damage,  # Use damage from JSON or default to 0
+                                'name': properties.get('name', ''),  # Add name from JSON or default to empty string
+                                'charge_percent': 1.0  # Initialize charge percentage to 0
                             })
                             print("Object placed successfully")
                         else:
@@ -1208,7 +1210,8 @@ class Editor:
                                     'image': obj_image,
                                     'offset': offset,
                                     'damage': damage,
-                                    'name': metadata['name']
+                                    'name': metadata['name'],
+                                    'charge_percent': 0  # Initialize charge percentage to 0
                                 })
                             else:
                                 print(f"Warning: Could not find object image for {obj_type} {obj_id}")

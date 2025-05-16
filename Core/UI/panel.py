@@ -33,6 +33,9 @@ class Panel:
         self.life_bar_right = pygame.image.load("Images/life_bar_right.png").convert_alpha()
         self.life_bar_energy_stretch = pygame.image.load("Images/life_bar_energy_stretch.png").convert_alpha()
         self.life_bar_energy_tip = pygame.image.load("Images/life_bar_energy_tip.png").convert_alpha()
+        # Load charge bar images
+        self.life_bar_charge_stretch = pygame.image.load("Images/life_bar_charge_stretch.png").convert_alpha()
+        self.life_bar_charge_tip = pygame.image.load("Images/life_bar_charge_tip.png").convert_alpha()
 
         # Create font for life bar percentage
         self.life_bar_font = pygame.font.Font(None, FONT_SIZES['small'])
@@ -589,7 +592,7 @@ class Panel:
             self.screen.blit(self.object_name_surface, (name_x, name_y))
 
     def render_life_bar(self, obj, left_area_rect):
-        """Render the life bar for the selected object"""
+        """Render the life bar and charge bar for the selected object"""
         if not obj or 'health' not in obj or 'max_health' not in obj:
             return False
             
@@ -602,6 +605,9 @@ class Panel:
         # Get health values
         current_health = obj['health']  # Current health value
         max_health = obj['max_health']  # Maximum health value
+        
+        # Get charge value (default to 0 if not present)
+        charge_percent = obj.get('charge_percent', 0)
         
         # Check if object has infinite health
         if max_health == -1:  # -1 represents infinite health
@@ -621,7 +627,8 @@ class Panel:
         left_width = self.life_bar_left.get_width()
         background_x = bar_x - 10  # Offset background 10px to the left
         self.screen.blit(self.life_bar_left, (background_x, bar_y))
-        self.screen.blit(self.life_bar_right, (background_x + left_width, bar_y))  # Position right after left image's width
+        right_pos = (background_x + left_width, bar_y)
+        self.screen.blit(self.life_bar_right, right_pos)  # Position right after left image's width
         
         # Draw life bar fill
         fill_width = int((bar_width - 19) * health_percent)  # Adjusted margin to allow complete fill
@@ -636,6 +643,19 @@ class Panel:
                 
             # Draw right cap
             self.screen.blit(self.life_bar_energy_tip, (energy_x + fill_width - 2, bar_y))
+        
+
+        # Calculate charge bar width (max 86 pixels for stretch)
+        charge_stretch_width = int(96 * charge_percent)
+        charge_x = right_pos[0]  # Start at the same position as life_bar_right
+        
+        # Draw charge stretch
+        for x in range(charge_x, charge_x + charge_stretch_width):
+            self.screen.blit(self.life_bar_charge_stretch, (x, bar_y))
+        
+        # Draw charge tip if there's any charge
+        if charge_stretch_width > 0:
+            self.screen.blit(self.life_bar_charge_tip, (charge_x + charge_stretch_width, bar_y))
         
         # Draw health percentage text centered in the left part
         text_x = background_x + (left_width - text_surface.get_width()) // 2  # Center in left part
