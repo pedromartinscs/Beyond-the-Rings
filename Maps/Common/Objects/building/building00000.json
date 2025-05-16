@@ -7,6 +7,13 @@
         "z_index": 1
     },
     "abilities": [],
+	"buttons": [
+        {
+            "name": "Builder",
+            "description": "Create a builder unit. Cost $250.",
+            "action": "builder_unit"
+        }
+    ],
     "visuals": {
         "animation_speed": 0,
         "frames": 1
