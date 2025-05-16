@@ -854,7 +854,8 @@ class Game(BaseScreen):
                     if attacker_unique_id in self.active_attacks:
                          del self.active_attacks[attacker_unique_id]
                     # Remove the flag after processing to reset state for future commands
-                    attacker.pop('is_attacking', None) 
+                    attacker.pop('is_attacking', None)
+                    attacker['charge_percent'] = 1.0  # Set charge to 100% when halted
                     continue # Skip further processing for this attack
 
                 # Check if target is already destroyed
@@ -864,6 +865,7 @@ class Game(BaseScreen):
                     del self.active_attacks[attacker_unique_id]
                     # Set target to destruction animation if not already
                     self.animation_manager.set_animation_state(target_unique_id, "destruction")
+                    attacker['charge_percent'] = 1.0  # Set charge to 100% when target is destroyed
                     continue
 
                 # Get attacker metadata
@@ -920,6 +922,8 @@ class Game(BaseScreen):
                 self.active_explosions.append(Explosion(missile.position, self.missile_explosion_images))
                 if missile.target and missile.target['max_health'] != -1:
                     missile.target['health'] -= missile.origin.get('damage', 1)
+                    if missile.target['health'] <= 0:
+                        missile.origin['charge_percent'] = 1.0
                 self.missiles.remove(missile)
 
         # Process explosions
@@ -1123,7 +1127,7 @@ class Game(BaseScreen):
                                     'damage': 0,
                                     'unique_id': f"{obj['x']}_{obj['y']}_resource_{resource_id}",
                                     'name': resource_metadata.get('name', 'Unknown Resource') if resource_metadata else 'Unknown Resource',
-                                    'charge_percent': 0  # Initialize charge percentage to 0
+                                    'charge_percent': 1.0  # Initialize charge percentage to 0
                                 }
                                 
                                 # Add the new resource to objects and spatial grid
