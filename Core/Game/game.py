@@ -3,12 +3,14 @@ import sys
 import os
 import math
 import json
+import uuid
 from Core.Game.explosion import Explosion
 from Core.Game.missile import Missile
 from Core.UI.base_screen import BaseScreen
 from Core.UI.panel import Panel
 from Core.UI.minimap import Minimap
 from Core.Game.object_collection import ObjectCollection
+from Core.Game.unit import Unit
 from Core.UI.cursor_manager import CursorManager
 from Core.Game.animation_manager import AnimationManager
 from Core.Game.vertical_panel import VerticalPanel
@@ -590,7 +592,7 @@ class Game(BaseScreen):
         """Handle an attack command from the panel"""
         attacker = attack_result['attacker']
         target = attack_result['target']
-        
+        metadata = self.object_collection.get_object_metadata(attacker['type'], attacker['id'])
         if attack_result['in_range']:
             # Start attack immediately
             self.active_attacks[attacker['unique_id']] = {
@@ -600,8 +602,8 @@ class Game(BaseScreen):
                 'target_type': target['type'],
                 'target_id': target['id'],
                 'target_unique_id': target['unique_id'],
-                'last_attack_time': pygame.time.get_ticks() - 1000, # Allow immediate first attack
-                'cooldown': 1000  # Default cooldown in milliseconds
+                'last_attack_time': pygame.time.get_ticks() - metadata.get('properties', {}).get('cooldown', 1000), # Allow immediate first attack
+                'cooldown': metadata.get('properties', {}).get('cooldown', 1000) # Default cooldown in milliseconds
             }
             attacker['is_attacking'] = True # Mark the attacker as currently attacking
             # Set attacker's animation state to 'fire'
@@ -648,6 +650,82 @@ class Game(BaseScreen):
                 'in_range': False,
                 'is_unit': properties.get('is_unit', False)
             }
+        
+    def handle_builder_unit_action(self, selected_object):
+        if not selected_object or selected_object['type'] != 'building' or selected_object['id'] != 0:
+            return
+        
+        if self.credits < 250:
+            print("Not enough credits to build a unit.")
+            return
+        
+        # Check cooldown
+        if selected_object.get('charge_percent', 1.0) < 1.0:
+            print("Building is cooling down.")
+            return
+        
+        hq_x, hq_y = selected_object['x'], selected_object['y']
+        excluded_tiles = {
+            (hq_x, hq_y),
+            (hq_x - 1, hq_y),
+            (hq_x + 1, hq_y),
+            (hq_x, hq_y + 1),
+        }
+        
+        for dy in [-1, 0, 1]:
+            for dx in [-1, 0, 1]:
+                tile_x, tile_y = hq_x + dx, hq_y + dy
+                if (tile_x, tile_y) in excluded_tiles:
+                    continue
+        
+                if not any(obj['x'] == tile_x and obj['y'] == tile_y for obj in self.objects):
+                    unit_id = 0
+                    unit_type = "unit"
+                    metadata = self.object_collection.get_object_metadata(unit_type, unit_id)
+        
+                    if not metadata:
+                        print("Unit metadata not found.")
+                        return
+        
+                    sprite_size = metadata.get('size', 'small')
+                    sprite_image = self.object_collection.get_object(unit_type, unit_id, sprite_size)
+                    if not sprite_image:
+                        print(f"Missing sprite ({sprite_size}) for {unit_type} id {unit_id}")
+                        return
+        
+                    new_unit = {
+                        'x': tile_x,
+                        'y': tile_y,
+                        'type': unit_type,
+                        'id': unit_id,
+                        'health': metadata.get('health', 100),
+                        'max_health': metadata.get('health', 100),
+                        'z_index': 1,
+                        'image': sprite_image,
+                        'offset': 32,
+                        'damage': metadata.get('damage', 0),
+                        'name': metadata.get('name', 'Builder'),
+                        'animation_speed': metadata.get('visuals', {}).get('animation_speed', 0),
+                        'frames': metadata.get('visuals', {}).get('frames', 1),
+                        'is_unit': True,
+                        'direction': 0,
+                        'has_turret': False,
+                        'turret_direction': 0,
+                        'charge_percent': 1.0,
+                        'unique_id': str(uuid.uuid4())
+                    }
+        
+                    self.objects.append(new_unit)
+                    self.add_object_to_grid(new_unit)
+                    self.camera_moved = True
+                    self.update_visible_objects()
+                    self.credits -= 250
+                    selected_object['charge_percent'] = 0.0
+                    selected_object['last_charge_time'] = pygame.time.get_ticks()
+                    print("Builder unit created at", tile_x, tile_y)
+                    return
+        
+        print("No valid tile found for builder unit.")
 
     def handle_events(self, event):
         if event.type == pygame.QUIT:
@@ -893,8 +971,10 @@ class Game(BaseScreen):
                 # Update attack cooldown
                 current_time = pygame.time.get_ticks()
                 time_since_last_shot = current_time - attack_data['last_attack_time']
-                attacker['charge_percent'] = min(1.0, time_since_last_shot / attack_data['cooldown'])
-                if time_since_last_shot >= attack_data['cooldown']:
+                attacker_metadata = self.object_collection.get_object_metadata(attacker['type'], attacker['id'])
+                cooldown = attacker_metadata.get('properties', {}).get('cooldown', 1000)
+                attacker['charge_percent'] = min(1.0, time_since_last_shot / cooldown)
+                if time_since_last_shot >= cooldown:
                     # Calculate angle for projectile
                     angle = self.calculate_angle(attacker['x'], attacker['y'], target['x'], target['y'])
                     nearest_direction = self.get_nearest_direction(angle, attacker_metadata['visuals']['directions'])
@@ -905,6 +985,7 @@ class Game(BaseScreen):
                         # Perform attack
                         self.animation_manager.set_animation_state(attacker_unique_id, "fire")
                         attack_data['last_attack_time'] = current_time
+                        attacker['last_charge_time'] = current_time
                         # Convert tile coordinates to world coordinates
                         attacker_world_x, attacker_world_y = self.calculate_missile_origin(attacker)
                         target_world_x = target['x'] * self.tile_size + self.tile_size // 2
@@ -915,6 +996,14 @@ class Game(BaseScreen):
                 self.animation_manager.set_animation_state(attacker_unique_id, "static")
                 del self.active_attacks[attacker_unique_id]
         
+        current_time = pygame.time.get_ticks()
+        for obj in self.objects:
+            if obj.get('charge_percent', 1.0) < 1.0:
+                metadata = self.object_collection.get_object_metadata(obj['type'], obj['id'])
+                cooldown_duration = metadata.get('properties', {}).get('cooldown', 1000) if metadata else 1000
+                elapsed = current_time - obj.get('last_charge_time', 0)
+                obj['charge_percent'] = min(1.0, elapsed / cooldown_duration)
+
         # Process missiles
         for missile in self.missiles:
             missile.update()

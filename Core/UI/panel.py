@@ -476,6 +476,8 @@ class Panel:
             self.is_targeting = True
             self.current_action = 'build'
             self.cursor_manager.set_cursor('build')
+        elif action == 'builder_unit':
+            self.game.handle_builder_unit_action(self.selected_object)
         elif action == 'cancel':
             self.cancel_targeting()
         elif action == 'destroy':
@@ -549,7 +551,7 @@ class Panel:
                         'is_unit': False
                     }
                 
-        elif self.current_action == 'build':
+        elif self.current_action == 'builder_unit':
             # Handle build action
             result = {
                 'action': 'build',

@@ -1,6 +1,7 @@
 {
     "name": "Iron Ore",
     "description": "Regular iron ore for mining resources and obtaining credits",
+	"size": "small",
     "properties": {
         "health": -1,
         "damage": 0,

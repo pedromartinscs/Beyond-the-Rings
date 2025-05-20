@@ -1,6 +1,7 @@
 {
     "name": "Ore Processor",
     "description": "This building process iron ores, or gold ores. It gives you credit.",
+	"size": "large",
     "properties": {
         "health": 4000,
         "damage": 0,
