@@ -7,6 +7,13 @@
         "z_index": 1
     },
     "abilities": [],
+    "buttons": [
+        {
+            "name": "Destroy",
+            "description": "Destroy this building",
+            "action": "destroy"
+        }
+    ],
     "visuals": {
         "animation_speed": 0,
         "frames": 1

@@ -1,12 +1,21 @@
 {
     "name": "Headquarter",
     "description": "This is the main building to build basic units. Protect your Headquarter at all cost!",
+	"size": "huge",
     "properties": {
         "health": 10000,
         "damage": 0,
-        "z_index": 1
+        "z_index": 1,
+		"cooldown": 10000
     },
     "abilities": [],
+	"buttons": [
+        {
+            "name": "Builder",
+            "description": "Create a builder unit. Cost $250.",
+            "action": "builder_unit"
+        }
+    ],
     "visuals": {
         "animation_speed": 0,
         "frames": 1

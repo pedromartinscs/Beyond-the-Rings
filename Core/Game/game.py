@@ -3,12 +3,14 @@ import sys
 import os
 import math
 import json
+import uuid
 from Core.Game.explosion import Explosion
 from Core.Game.missile import Missile
 from Core.UI.base_screen import BaseScreen
 from Core.UI.panel import Panel
 from Core.UI.minimap import Minimap
 from Core.Game.object_collection import ObjectCollection
+from Core.Game.unit import Unit
 from Core.UI.cursor_manager import CursorManager
 from Core.Game.animation_manager import AnimationManager
 from Core.Game.vertical_panel import VerticalPanel
@@ -28,6 +30,12 @@ class Game(BaseScreen):
             pygame.mixer.music.stop()
         pygame.mixer.music.load(self.music_file)
         pygame.mixer.music.play(-1, 0.0)
+
+        # Initialize credit system
+        self.credits = 5000  # Starting credits
+        self.credit_image = pygame.image.load("Images/credit.png").convert_alpha()
+        self.credit_font = pygame.font.Font(None, 32)  # Reduced from 36 to 32 for slightly smaller text
+        self.last_credit_update = pygame.time.get_ticks()  # Track last credit update time
 
         # Initialize object collection before panels
         self.object_collection = ObjectCollection()
@@ -336,7 +344,8 @@ class Game(BaseScreen):
                                     'is_unit': metadata.get('is_unit', False),
                                     'direction': metadata.get('direction', 0),
                                     'has_turret': metadata.get('has_turret', False),
-                                    'turret_direction': metadata.get('turret_direction', 0)
+                                    'turret_direction': metadata.get('turret_direction', 0),
+                                    'charge_percent': 1.0  # Initialize charge percentage to 0
                                 }
                                 self.objects.append(obj)
                                 self.add_object_to_grid(obj)  # Add object to spatial grid
@@ -583,7 +592,7 @@ class Game(BaseScreen):
         """Handle an attack command from the panel"""
         attacker = attack_result['attacker']
         target = attack_result['target']
-        
+        metadata = self.object_collection.get_object_metadata(attacker['type'], attacker['id'])
         if attack_result['in_range']:
             # Start attack immediately
             self.active_attacks[attacker['unique_id']] = {
@@ -593,9 +602,10 @@ class Game(BaseScreen):
                 'target_type': target['type'],
                 'target_id': target['id'],
                 'target_unique_id': target['unique_id'],
-                'last_attack_time': pygame.time.get_ticks() - 1000,
-                'cooldown': 1000  # Default cooldown in milliseconds
+                'last_attack_time': pygame.time.get_ticks() - metadata.get('properties', {}).get('cooldown', 1000), # Allow immediate first attack
+                'cooldown': metadata.get('properties', {}).get('cooldown', 1000) # Default cooldown in milliseconds
             }
+            attacker['is_attacking'] = True # Mark the attacker as currently attacking
             # Set attacker's animation state to 'fire'
             # self.animation_manager.set_animation_state(attacker['unique_id'], 'fire')
         elif attack_result['is_unit']:
@@ -640,6 +650,82 @@ class Game(BaseScreen):
                 'in_range': False,
                 'is_unit': properties.get('is_unit', False)
             }
+        
+    def handle_builder_unit_action(self, selected_object):
+        if not selected_object or selected_object['type'] != 'building' or selected_object['id'] != 0:
+            return
+        
+        if self.credits < 250:
+            print("Not enough credits to build a unit.")
+            return
+        
+        # Check cooldown
+        if selected_object.get('charge_percent', 1.0) < 1.0:
+            print("Building is cooling down.")
+            return
+        
+        hq_x, hq_y = selected_object['x'], selected_object['y']
+        excluded_tiles = {
+            (hq_x, hq_y),
+            (hq_x - 1, hq_y),
+            (hq_x + 1, hq_y),
+            (hq_x, hq_y + 1),
+        }
+        
+        for dy in [-1, 0, 1]:
+            for dx in [-1, 0, 1]:
+                tile_x, tile_y = hq_x + dx, hq_y + dy
+                if (tile_x, tile_y) in excluded_tiles:
+                    continue
+        
+                if not any(obj['x'] == tile_x and obj['y'] == tile_y for obj in self.objects):
+                    unit_id = 0
+                    unit_type = "unit"
+                    metadata = self.object_collection.get_object_metadata(unit_type, unit_id)
+        
+                    if not metadata:
+                        print("Unit metadata not found.")
+                        return
+        
+                    sprite_size = metadata.get('size', 'small')
+                    sprite_image = self.object_collection.get_object(unit_type, unit_id, sprite_size)
+                    if not sprite_image:
+                        print(f"Missing sprite ({sprite_size}) for {unit_type} id {unit_id}")
+                        return
+        
+                    new_unit = {
+                        'x': tile_x,
+                        'y': tile_y,
+                        'type': unit_type,
+                        'id': unit_id,
+                        'health': metadata.get('health', 100),
+                        'max_health': metadata.get('health', 100),
+                        'z_index': 1,
+                        'image': sprite_image,
+                        'offset': 32,
+                        'damage': metadata.get('damage', 0),
+                        'name': metadata.get('name', 'Builder'),
+                        'animation_speed': metadata.get('visuals', {}).get('animation_speed', 0),
+                        'frames': metadata.get('visuals', {}).get('frames', 1),
+                        'is_unit': True,
+                        'direction': 0,
+                        'has_turret': False,
+                        'turret_direction': 0,
+                        'charge_percent': 1.0,
+                        'unique_id': str(uuid.uuid4())
+                    }
+        
+                    self.objects.append(new_unit)
+                    self.add_object_to_grid(new_unit)
+                    self.camera_moved = True
+                    self.update_visible_objects()
+                    self.credits -= 250
+                    selected_object['charge_percent'] = 0.0
+                    selected_object['last_charge_time'] = pygame.time.get_ticks()
+                    print("Builder unit created at", tile_x, tile_y)
+                    return
+        
+        print("No valid tile found for builder unit.")
 
     def handle_events(self, event):
         if event.type == pygame.QUIT:
@@ -721,6 +807,10 @@ class Game(BaseScreen):
                             attack_result = self.panel.handle_target_selection(target_object)
                             if attack_result and attack_result['action'] == 'attack':
                                 self.handle_attack_command(attack_result)
+                        else:
+                            # No objects found, cancel targeting mode
+                            self.panel.cancel_targeting()
+                            self.cursor_manager.set_cursor("normal")
                 # Finally check for object selection, but only if not clicking on panels
                 elif not self.is_click_on_panels(mouse_pos):
                     # Get tile coordinates from mouse position
@@ -765,6 +855,24 @@ class Game(BaseScreen):
         # Get mouse position once
         mouse_pos = pygame.mouse.get_pos()
         
+        # Update credits from ore processors
+        current_time = pygame.time.get_ticks()
+        if current_time - self.last_credit_update >= 1000:  # Check if a second has passed
+            # Process all buildings that generate credits
+            for obj in self.objects:
+                if obj['type'] == 'building':
+                    # Get building metadata
+                    metadata = self.object_collection.get_object_metadata(obj['type'], obj['id'])
+                    if metadata and 'properties' in metadata:
+                        properties = metadata['properties']
+                        # Check if building is an ore processor
+                        if (properties.get('is_ore_gold', False) or properties.get('is_ore_iron', False)) and obj['health'] > 0:
+                            # Add credits based on profit rate
+                            profit_rate = properties.get('profit_rate', 0)
+                            self.add_credits(profit_rate)
+            
+            self.last_credit_update = current_time
+
         # Optimize camera movement with edge detection
         edge_area = 50  # pixels from edge to trigger camera movement
         move_speed = 15  # Increased from 5 to 15 for faster movement
@@ -818,6 +926,26 @@ class Game(BaseScreen):
                     break
             
             if attacker and target:
+                # Check if the halt action was triggered
+                if attacker.get('is_attacking') is False: # Check if explicitly set to False
+                    self.animation_manager.set_animation_state(attacker_unique_id, "static")
+                    if attacker_unique_id in self.active_attacks:
+                         del self.active_attacks[attacker_unique_id]
+                    # Remove the flag after processing to reset state for future commands
+                    attacker.pop('is_attacking', None)
+                    attacker['charge_percent'] = 1.0  # Set charge to 100% when halted
+                    continue # Skip further processing for this attack
+
+                # Check if target is already destroyed
+                if target['health'] <= 0 and target.get('max_health', 100) != -1:
+                    # Stop attacking destroyed target
+                    self.animation_manager.set_animation_state(attacker_unique_id, "static")
+                    del self.active_attacks[attacker_unique_id]
+                    # Set target to destruction animation if not already
+                    self.animation_manager.set_animation_state(target_unique_id, "destruction")
+                    attacker['charge_percent'] = 1.0  # Set charge to 100% when target is destroyed
+                    continue
+
                 # Get attacker metadata
                 attacker_metadata = self.object_collection.get_object_metadata(attacker['type'], attacker['id'])
                 if not attacker_metadata:
@@ -842,7 +970,11 @@ class Game(BaseScreen):
                 
                 # Update attack cooldown
                 current_time = pygame.time.get_ticks()
-                if current_time - attack_data['last_attack_time'] >= attack_data['cooldown']:
+                time_since_last_shot = current_time - attack_data['last_attack_time']
+                attacker_metadata = self.object_collection.get_object_metadata(attacker['type'], attacker['id'])
+                cooldown = attacker_metadata.get('properties', {}).get('cooldown', 1000)
+                attacker['charge_percent'] = min(1.0, time_since_last_shot / cooldown)
+                if time_since_last_shot >= cooldown:
                     # Calculate angle for projectile
                     angle = self.calculate_angle(attacker['x'], attacker['y'], target['x'], target['y'])
                     nearest_direction = self.get_nearest_direction(angle, attacker_metadata['visuals']['directions'])
@@ -853,6 +985,7 @@ class Game(BaseScreen):
                         # Perform attack
                         self.animation_manager.set_animation_state(attacker_unique_id, "fire")
                         attack_data['last_attack_time'] = current_time
+                        attacker['last_charge_time'] = current_time
                         # Convert tile coordinates to world coordinates
                         attacker_world_x, attacker_world_y = self.calculate_missile_origin(attacker)
                         target_world_x = target['x'] * self.tile_size + self.tile_size // 2
@@ -863,10 +996,25 @@ class Game(BaseScreen):
                 self.animation_manager.set_animation_state(attacker_unique_id, "static")
                 del self.active_attacks[attacker_unique_id]
         
+        current_time = pygame.time.get_ticks()
+        for obj in self.objects:
+            if obj.get('charge_percent', 1.0) < 1.0:
+                metadata = self.object_collection.get_object_metadata(obj['type'], obj['id'])
+                cooldown_duration = metadata.get('properties', {}).get('cooldown', 1000) if metadata else 1000
+                elapsed = current_time - obj.get('last_charge_time', 0)
+                obj['charge_percent'] = min(1.0, elapsed / cooldown_duration)
+
         # Process missiles
         for missile in self.missiles:
             missile.update()
-        
+            if missile.finished:
+                self.active_explosions.append(Explosion(missile.position, self.missile_explosion_images))
+                if missile.target and missile.target['max_health'] != -1:
+                    missile.target['health'] -= missile.origin.get('damage', 1)
+                    if missile.target['health'] <= 0:
+                        missile.origin['charge_percent'] = 1.0
+                self.missiles.remove(missile)
+
         # Process explosions
         for explosion in self.active_explosions:
             explosion.update()
@@ -886,6 +1034,29 @@ class Game(BaseScreen):
         attacker_world_y = attacker['y'] * self.tile_size + self.tile_size // 2 + angle_map_y[attacker['turret_direction']]
         
         return attacker_world_x,attacker_world_y
+
+    def add_credits(self, amount):
+        """Add credits to the player's balance"""
+        self.credits += amount
+
+    def remove_credits(self, amount):
+        """Remove credits from the player's balance if possible
+        
+        Returns:
+            bool: True if credits were successfully removed, False if insufficient funds
+        """
+        if self.credits >= amount:
+            self.credits -= amount
+            return True
+        return False
+
+    def has_enough_credits(self, amount):
+        """Check if player has enough credits
+        
+        Returns:
+            bool: True if player has enough credits, False otherwise
+        """
+        return self.credits >= amount
 
     def render(self):
         # Clear the screen before rendering
@@ -943,10 +1114,26 @@ class Game(BaseScreen):
             )
             
             # Check if object should be destroyed
-            if current_frame == "DESTROYED" and obj.get('max_health', 100) != -1:  # Don't destroy if infinite health
+            if (current_frame == "DESTROYED" or 
+                (obj['health'] <= 0 and obj.get('max_health', 100) != -1)):  # Don't destroy if infinite health
                 objects_to_remove.append(obj)
+                # Create a dirty rect for the area that needs to be redrawn
+                obj_width = obj['image'].get_width()
+                obj_height = obj['image'].get_height()
+                
+                removal_rect = pygame.Rect(screen_x, screen_y, obj_width, obj_height)
+                self.dirty_rects.append(removal_rect)
+                # Force background redraw for this area
+                map_area = self.map_surface.subsurface(
+                    pygame.Rect(screen_x + self.camera_x, screen_y + self.camera_y, obj_width, obj_height)
+                ).copy()
+                self.screen.blit(map_area, (screen_x, screen_y))
+                
+                # Set destruction animation if not already destroyed
+                if current_frame != "DESTROYED":
+                    self.animation_manager.set_animation_state(obj['unique_id'], "destruction")
                 continue
-            
+
             # If no animation frame is available, use the default image
             obj_image = current_frame if current_frame else obj['image']
             
@@ -972,7 +1159,7 @@ class Game(BaseScreen):
         # Second pass: Draw front parts of selection rings for selected objects
         for obj_data in self.visible_objects_cache:
             obj = obj_data['obj']
-            if self.selected_object == obj:
+            if obj not in objects_to_remove and self.selected_object == obj:
                 screen_x = obj_data['screen_x']
                 screen_y = obj_data['screen_y']
                 
@@ -991,36 +1178,97 @@ class Game(BaseScreen):
                 rect = pygame.Rect(x - ring_radius, y - ring_radius * 0.7, ring_radius * 2, ring_radius * 1.4)
                 pygame.draw.arc(self.screen, self.selection_ring_color, rect,
                               -math.pi/2, math.pi/2, self.selection_ring_width)
-        
+
+        # Remove destroyed objects after both rendering passes
+        for obj in objects_to_remove:
+            if obj in self.objects:
+                # Check if this is an ore processor before removing it
+                if obj['type'] == 'building':
+                    metadata = self.object_collection.get_object_metadata(obj['type'], obj['id'])
+                    if metadata and 'properties' in metadata:
+                        properties = metadata['properties']
+                        # Determine if it's an ore processor and which type
+                        if properties.get('is_ore_iron', False) or properties.get('is_ore_gold', False):
+                            # Create the resource object
+                            resource_id = 0 if properties.get('is_ore_iron', False) else 1  # 0 for iron, 1 for gold
+                            # Try to load resource image in different sizes
+                            resource_image = None
+                            for size in ['small', 'large', 'huge']:
+                                resource_image = self.object_collection.get_object('resource', resource_id, size)
+                                if resource_image:
+                                    break
+                            
+                            if resource_image:
+                                # Get resource metadata
+                                resource_metadata = self.object_collection.get_object_metadata('resource', resource_id)
+                                
+                                # Create new resource object at the same position
+                                new_resource = {
+                                    'x': obj['x'],
+                                    'y': obj['y'],
+                                    'type': 'resource',
+                                    'id': resource_id,
+                                    'health': -1,  # Resources have infinite health
+                                    'max_health': -1,
+                                    'z_index': 1,  # Resources should be at ground level
+                                    'image': resource_image,
+                                    'offset': 32,  # Resources are typically small objects
+                                    'damage': 0,
+                                    'unique_id': f"{obj['x']}_{obj['y']}_resource_{resource_id}",
+                                    'name': resource_metadata.get('name', 'Unknown Resource') if resource_metadata else 'Unknown Resource',
+                                    'charge_percent': 1.0  # Initialize charge percentage to 0
+                                }
+                                
+                                # Add the new resource to objects and spatial grid
+                                self.objects.append(new_resource)
+                                self.add_object_to_grid(new_resource)
+
+                                # Calculate screen position for the new resource
+                                world_x = new_resource['x'] * self.tile_size
+                                world_y = new_resource['y'] * self.tile_size
+                                screen_x = world_x - self.camera_x - new_resource['offset'] + self.tile_size // 2
+                                screen_y = world_y - self.camera_y - new_resource['offset'] + self.tile_size // 2
+
+                                # Create a dirty rect for the new resource area
+                                resource_rect = pygame.Rect(
+                                    screen_x,
+                                    screen_y,
+                                    resource_image.get_width(),
+                                    resource_image.get_height()
+                                )
+                                self.dirty_rects.append(resource_rect)
+
+                                # Force immediate redraw of the background in this area
+                                map_area = self.map_surface.subsurface(
+                                    pygame.Rect(world_x, world_y, self.tile_size, self.tile_size)
+                                ).copy()
+                                self.screen.blit(map_area, (screen_x, screen_y))
+
+                                # We need both camera_moved and update_visible_objects because:
+                                # 1. camera_moved = True forces a complete refresh of visible objects on next frame
+                                # 2. update_visible_objects() immediately updates the cache for this frame
+                                self.camera_moved = True
+                                self.update_visible_objects()
+                
+                # Remove the original object
+                self.objects.remove(obj)
+                self.remove_object_from_grid(obj)  # Remove from spatial grid
+                # Also remove from visible objects cache
+                self.visible_objects_cache = [x for x in self.visible_objects_cache if x['obj'] != obj]
+                if obj == self.selected_object:
+                    self.selected_object = None
+                    self.selected_object_image = None
+                    self.panel.set_selected_object(None)
+
         # Render missiles
         for missile in self.missiles:
             missile.render(self.screen, self.missiles_images[missile.orientation // 45], self.camera_x, self.camera_y)
-            if missile.finished:
-                self.active_explosions.append(Explosion(missile.position, self.missile_explosion_images))
-                if missile.target and missile.target['max_health'] != -1:
-                    missile.target['health'] -= missile.origin.get('damage', 1)
-                self.missiles.remove(missile)
-            else:
-                # Adjust missile rect for camera offset
-                missile_x = missile.position[0] - self.camera_x
-                missile_y = missile.position[1] - self.camera_y
-                self.dirty_rects.append(pygame.Rect(missile_x - 8, missile_y - 8, 16, 16))
 
         # Process explosions
         for explosion in self.active_explosions:
             explosion.render(self.screen, self.camera_x, self.camera_y)
             if explosion.finished:
                 self.active_explosions.remove(explosion)
-
-        # Remove destroyed objects
-        for obj in objects_to_remove:
-            if obj in self.objects:
-                self.objects.remove(obj)
-                self.remove_object_from_grid(obj)  # Remove from spatial grid
-            if obj == self.selected_object:
-                self.selected_object = None
-                self.selected_object_image = None
-                self.panel.set_selected_object(None)
 
         # Render the minimap
         self.minimap.render(self.screen, self.camera_x, self.camera_y, self.camera_width, self.camera_height)
@@ -1031,6 +1279,23 @@ class Game(BaseScreen):
         # Render the panels
         self.vertical_panel.render()
         self.panel.render()
+
+        # Render credits
+        credit_x = 10  # Changed from right to left edge
+        credit_y = 15  # Increased from 10 to 15 to move down slightly
+        self.screen.blit(self.credit_image, (credit_x, credit_y))
+        
+        # Render credit amount
+        credit_text = f"$ {self.credits:,}"  # Format with commas for thousands
+        credit_surface = self.credit_font.render(credit_text, True, (255, 255, 255))
+        # Left align text with small margin
+        text_x = credit_x + 20  # Fixed left margin instead of centering
+        text_y = credit_y + (self.credit_image.get_height() - credit_surface.get_height()) // 2 + 2  # Keep vertical centering with slight downward adjustment
+        self.screen.blit(credit_surface, (text_x, text_y))
+
+        # Add credit display area to dirty rects for updating
+        credit_rect = pygame.Rect(credit_x, credit_y, self.credit_image.get_width(), self.credit_image.get_height())
+        self.dirty_rects.append(credit_rect)
 
         # Render selected object image in the horizontal panel's left area
         if self.panel.current_y < self.screen_height - self.panel.handle_height:

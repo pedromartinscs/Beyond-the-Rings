@@ -1,6 +1,7 @@
 {
     "name": "Defense Tower",
     "description": "Use it to protect surrounding buildings and units.",
+	"size": "large",
     "properties": {
         "health": 4000,
         "damage": 100,
@@ -8,7 +9,8 @@
         "attack_range": 12,
         "is_unit": false,
         "attack_cooldown": 1000,
-        "attack_type": "projectile"
+        "attack_type": "projectile",
+		"cooldown": 1000
     },
     "abilities": [],
     "buttons": [
@@ -21,6 +23,16 @@
             "name": "Implode Building",
             "description": "Self destruct",
             "action": "destroy"
+        },
+        {
+            "name": "Halt",
+            "description": "Stop any task performing",
+            "action": "halt"
+        },
+        {
+            "name": "Ore Processor",
+            "description": "Build an ore processor to extract gold or iron and earn credit with it",
+            "action": "build_ore"
         }
     ],
     "visuals": {

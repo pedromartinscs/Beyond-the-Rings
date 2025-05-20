@@ -33,6 +33,9 @@ class Panel:
         self.life_bar_right = pygame.image.load("Images/life_bar_right.png").convert_alpha()
         self.life_bar_energy_stretch = pygame.image.load("Images/life_bar_energy_stretch.png").convert_alpha()
         self.life_bar_energy_tip = pygame.image.load("Images/life_bar_energy_tip.png").convert_alpha()
+        # Load charge bar images
+        self.life_bar_charge_stretch = pygame.image.load("Images/life_bar_charge_stretch.png").convert_alpha()
+        self.life_bar_charge_tip = pygame.image.load("Images/life_bar_charge_tip.png").convert_alpha()
 
         # Create font for life bar percentage
         self.life_bar_font = pygame.font.Font(None, FONT_SIZES['small'])
@@ -347,14 +350,15 @@ class Panel:
                 # Draw button
                 button.draw(self.screen)
                 
-                # Draw description if button is hovered
+                # Always draw description box
+                desc_rect = box['rect'].copy()
+                desc_rect.x = middle_x + box['rect'].x
+                desc_rect.y = middle_y + box['rect'].y
+                self.screen.blit(box['surface'], desc_rect)
+                
+                # Store tooltip if button is hovered
                 if button.rect.collidepoint(mouse_pos):
                     self.current_tooltip = box['description']
-                    # Draw description box
-                    desc_rect = box['rect'].copy()
-                    desc_rect.x = middle_x + box['rect'].x
-                    desc_rect.y = middle_y + box['rect'].y
-                    self.screen.blit(box['surface'], desc_rect)
                 
                 # Restore original position
                 button.rect.x = original_x
@@ -472,8 +476,25 @@ class Panel:
             self.is_targeting = True
             self.current_action = 'build'
             self.cursor_manager.set_cursor('build')
+        elif action == 'builder_unit':
+            self.game.handle_builder_unit_action(self.selected_object)
         elif action == 'cancel':
             self.cancel_targeting()
+        elif action == 'destroy':
+            if not self.selected_object:
+                return
+                
+            # Set health to 0 to trigger destruction
+            self.selected_object['health'] = 0
+            # Clear selection since object will be destroyed
+            self.selected_object = None
+            self.selected_object_image = None
+            self.set_selected_object(None)
+        elif action == 'halt':
+            if not self.selected_object:
+                return
+            # Ensure the 'is_attacking' flag is set to False on the selected object.
+            self.selected_object['is_attacking'] = False
 
     def cancel_targeting(self):
         """Cancel targeting mode"""
@@ -530,7 +551,7 @@ class Panel:
                         'is_unit': False
                     }
                 
-        elif self.current_action == 'build':
+        elif self.current_action == 'builder_unit':
             # Handle build action
             result = {
                 'action': 'build',
@@ -573,7 +594,7 @@ class Panel:
             self.screen.blit(self.object_name_surface, (name_x, name_y))
 
     def render_life_bar(self, obj, left_area_rect):
-        """Render the life bar for the selected object"""
+        """Render the life bar and charge bar for the selected object"""
         if not obj or 'health' not in obj or 'max_health' not in obj:
             return False
             
@@ -586,6 +607,9 @@ class Panel:
         # Get health values
         current_health = obj['health']  # Current health value
         max_health = obj['max_health']  # Maximum health value
+        
+        # Get charge value (default to 0 if not present)
+        charge_percent = obj.get('charge_percent', 0)
         
         # Check if object has infinite health
         if max_health == -1:  # -1 represents infinite health
@@ -605,21 +629,35 @@ class Panel:
         left_width = self.life_bar_left.get_width()
         background_x = bar_x - 10  # Offset background 10px to the left
         self.screen.blit(self.life_bar_left, (background_x, bar_y))
-        self.screen.blit(self.life_bar_right, (background_x + left_width, bar_y))  # Position right after left image's width
+        right_pos = (background_x + left_width, bar_y)
+        self.screen.blit(self.life_bar_right, right_pos)  # Position right after left image's width
         
         # Draw life bar fill
-        fill_width = int(bar_width * health_percent)
+        fill_width = int((bar_width - 19) * health_percent)  # Adjusted margin to allow complete fill
         if fill_width > 0:
-            # Draw left cap of energy fill, offset to the right by 20 pixels
+            # Draw left cap of energy fill
             energy_x = bar_x + 20  # Start energy fill 20px to the right
             self.screen.blit(self.life_bar_energy_tip, (energy_x, bar_y))
             
             # Draw middle section
-            for x in range(energy_x + 2, bar_x + fill_width - 2):
+            for x in range(energy_x + 2, energy_x + fill_width - 2):
                 self.screen.blit(self.life_bar_energy_stretch, (x, bar_y))
                 
             # Draw right cap
-            self.screen.blit(self.life_bar_energy_tip, (bar_x + fill_width - 2, bar_y))
+            self.screen.blit(self.life_bar_energy_tip, (energy_x + fill_width - 2, bar_y))
+        
+
+        # Calculate charge bar width (max 86 pixels for stretch)
+        charge_stretch_width = int(96 * charge_percent)
+        charge_x = right_pos[0]  # Start at the same position as life_bar_right
+        
+        # Draw charge stretch
+        for x in range(charge_x, charge_x + charge_stretch_width):
+            self.screen.blit(self.life_bar_charge_stretch, (x, bar_y))
+        
+        # Draw charge tip if there's any charge
+        if charge_stretch_width > 0:
+            self.screen.blit(self.life_bar_charge_tip, (charge_x + charge_stretch_width, bar_y))
         
         # Draw health percentage text centered in the left part
         text_x = background_x + (left_width - text_surface.get_width()) // 2  # Center in left part
