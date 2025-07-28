@@ -79,5 +79,4 @@ If you have any questions or suggestions, feel free to reach out via issues or p
 
 ---
 
-**Beyond the Rings** is a game developed by [Your Name or Team Name].  
-Check the project repository for the latest updates and releases.
+**Beyond the Rings** was built with ❤️ by [Pedro Martins Costa de Souza](https://github.com/pedromartinscs)

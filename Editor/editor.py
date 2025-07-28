@@ -1074,6 +1074,8 @@ class Editor:
                     
                     # Write objects section
                     f.write("#Objects: on format [x][y][type][id][health][z-index][damage]\n")
+                    
+                    # Write objects
                     for obj in self.objects:
                         f.write(f"[{obj['x']}][{obj['y']}][{obj['type']}][{obj['id']}][{obj['health']}][{obj['z_index']}][{obj['damage']}]\n")
                         
@@ -1394,6 +1396,14 @@ class Editor:
 
     def randomize_forrest(self):
         """Generate random forrests on the map using a recursive approach"""
+        # Save the current states
+        original_showing_large = self.showing_large_objects
+        original_showing_huge = self.showing_huge_objects
+
+        # Set to show large objects to access trees
+        self.showing_large_objects = True
+        self.showing_huge_objects = False
+
         # Get all available large tree objects
         trees = self.object_collection.get_objects_by_type("tree", 'large')
         if not trees:
@@ -1424,7 +1434,10 @@ class Editor:
                 'id': tree['id'],
                 'health': 500,
                 'z_index': 1,
-                'offset': 32  # Large object offset
+                'offset': 32,  # Large object offset
+                'damage': 0,
+                'name': "Tree",
+                'charge_percent': 0
             })
             
             # Check surrounding tiles
@@ -1443,6 +1456,10 @@ class Editor:
                             place_tree_recursive(x, y)
         
         print(f"Generated forest with {len(visited)} trees")
+
+        # Restore original states
+        self.showing_large_objects = original_showing_large
+        self.showing_huge_objects = original_showing_huge
 
     def load_object_json(self, obj_type, obj_id):
         """Load JSON data for an object, falling back to default.json if needed"""
