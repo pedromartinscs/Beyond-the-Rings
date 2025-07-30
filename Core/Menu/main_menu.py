@@ -3,6 +3,7 @@ import sys
 from Core.Credits.credits import CreditsScreen
 from Core.Game.game import Game
 from Core.UI.base_screen import BaseScreen
+from Core.UI.cursor_manager import CursorManager
 from ..UI.button import Button
 
 
@@ -152,7 +153,7 @@ class MainMenu(BaseScreen):
             button.draw(self.screen)
         
         # Update the display
-        pygame.display.flip()
+        #pygame.display.flip()
 
         # IMPORTANT: Call parent's render method to ensure cursor is rendered on top of everything
         # This is required because BaseScreen handles cursor rendering and we want the cursor

@@ -1356,6 +1356,3 @@ class Game(BaseScreen):
         # Update only the dirty areas of the screen
         if self.dirty_rects:
             pygame.display.update(self.dirty_rects)
-        else:
-            pygame.display.flip()
-
