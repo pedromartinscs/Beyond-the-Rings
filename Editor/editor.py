@@ -703,6 +703,10 @@ class Editor:
                             print("Object placed successfully")
                         else:
                             print("Object placement failed - invalid position")
+                    elif self.selected_tile is not None:
+                        map_x = (mouse_x + self.camera_x) // self.tile_size
+                        map_y = (mouse_y + self.camera_y) // self.tile_size
+                        self.place_tile(map_x, map_y)  # Manual tile placement
             elif event.button == 3:  # Right click (drag start)
                 self.dragging = True
                 self.last_mouse_pos = event.pos

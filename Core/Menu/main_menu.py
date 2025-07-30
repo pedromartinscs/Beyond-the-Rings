@@ -3,6 +3,7 @@ import sys
 from Core.Credits.credits import CreditsScreen
 from Core.Game.game import Game
 from Core.UI.base_screen import BaseScreen
+from Core.UI.cursor_manager import CursorManager
 from ..UI.button import Button
 
 
@@ -20,7 +21,7 @@ class MainMenu(BaseScreen):
 
         # Initialize the mixer for playing music and sound effects
         pygame.mixer.init()  # Initialize the pygame mixer
-        self.music_file = "Music/672781__bertsz__cyberpunk_dump.flac"  # Path to the background music file
+        self.music_file = "Music/bertsz__cyberpunk_dump.mp3"  # Path to the background music file
         if pygame.mixer.music.get_busy():
             current_song = pygame.mixer.music.get_pos()
             if current_song != self.music_file:
@@ -152,7 +153,7 @@ class MainMenu(BaseScreen):
             button.draw(self.screen)
         
         # Update the display
-        pygame.display.flip()
+        #pygame.display.flip()
 
         # IMPORTANT: Call parent's render method to ensure cursor is rendered on top of everything
         # This is required because BaseScreen handles cursor rendering and we want the cursor
