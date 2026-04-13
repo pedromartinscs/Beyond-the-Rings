@@ -1,24 +1,52 @@
 # Beyond the Rings
 
-A futuristic real-time strategy game set on Titan, Saturn's moon.
+> ⚙️ Developed entirely by Pedro Martins Costa de Souza — game programmer with experience in .NET, Python, AWS, Docker, and game systems.  
+> 🚀 Currently open to remote opportunities in game development (full-time or freelance).  
+> 📫 Contact: pedro@nancode.com.br | [LinkedIn](https://www.linkedin.com/in/pedromartinscosta/) | [Portfolio](https://github.com/pedromartinscs)
 
-The current codebase focuses on a solid single-player runtime built with **Python** and **Pygame**, with the project architecture refactored to prioritize readability, separation of responsibilities, and safer future expansion.
+**Beyond the Rings** is a futuristic real-time strategy game set on Titan, one of Saturn's moons. Players control competing factions, gather strategic resources such as uranium, iron, titanium, natural gas, and water, expand their bases, and fight for dominance across the map.
+
+This project is being developed in **Python** with **Pygame**, and serves both as an active game project and as a portfolio piece that showcases game architecture, gameplay systems, UI coordination, rendering flow, and RTS-style runtime organization.
+
+---
+
+## Features
+
+- **Built with Python and Pygame**  
+  The project showcases real-time gameplay systems, world rendering, UI flow, combat logic, resource generation, and game-state coordination.
+
+- **Solo-developed**  
+  This is a solo project, reflecting end-to-end ownership of architecture, gameplay logic, code organization, and technical decision-making.
+
+- **Multiple factions**  
+  The long-term direction includes playable factions such as the United States, China, Russia, Japan, India, the European Union, Brazil, South Africa, and unlockable factions like FrontierX, BioTech, Resistência Espacial, and ShadowAI.
+
+- **Resource gathering and expansion**  
+  The game is built around map control, strategic expansion, and resource-oriented growth.
+
+- **Strategic combat**  
+  Units and structures can engage in combat through attacks, projectiles, and faction-specific gameplay possibilities.
+
+- **Open-ended future growth**  
+  The architecture now supports future systems such as production queues, new weapons, improved UI feedback, AI, hotkeys, and more.
+
+- **Open source direction**  
+  The project is intended to remain open and extensible as development continues.
 
 ---
 
 ## Project overview
 
-In **Beyond the Rings**, rival factions fight for control of strategic regions on Titan in order to secure valuable resources such as:
+The core idea of **Beyond the Rings** is to deliver a futuristic RTS experience inspired by classic strategy games, but with a setting centered on Titan and a growing set of sci-fi factions and mechanics.
 
-- uranium
-- iron
-- titanium
-- natural gas
-- water
+The current version emphasizes:
 
-The gameplay direction is inspired by classic RTS titles, with base construction, resource gathering, unit production, map control, and combat.
+- a maintainable runtime architecture
+- clear separation of responsibilities
+- safer iteration for new gameplay features
+- a more readable main game flow
 
-The current implementation is centered on a maintainable runtime architecture, so new features can be added with less risk than before.
+This makes the codebase much better prepared for continued feature development than it was before the refactor.
 
 ---
 
@@ -26,13 +54,14 @@ The current implementation is centered on a maintainable runtime architecture, s
 
 The project was refactored from a more monolithic structure into a **composed runtime**.
 
-The most important rule is:
+The main principle is:
 
 - **`Game` acts as the orchestrator**
 - specialized collaborators own specific domains
-- UI responsibilities are coordinated separately from world/gameplay responsibilities
+- UI-specific coordination is separated from world/gameplay responsibilities
+- reusable UI concerns remain distinct from game-screen-specific HUD logic
 
-At a high level, the runtime now follows this model:
+At a high level, the runtime now follows this structure:
 
 ```text
 Game
@@ -46,91 +75,82 @@ Game
 └── GameObjectFactory
 ```
 
-This means the main game screen no longer tries to own every gameplay rule directly.  
-Instead, it coordinates dedicated systems that each have a clearer purpose.
+This means the main gameplay screen no longer tries to own every responsibility directly.  
+Instead, it coordinates collaborators that each own a clearer slice of the runtime.
 
 ---
 
 ## Main runtime flow
 
-The central game loop is intentionally easy to read.
-
-`Game` is designed around three main lifecycle methods:
+The gameplay screen is intentionally organized around three main lifecycle methods:
 
 - `handle_events(...)`
 - `update()`
 - `render()`
 
-This keeps the top-level flow readable and makes it easier to reason about the frame lifecycle.
+This keeps the top-level loop easier to read, easier to debug, and safer to extend.
 
-### Lifecycle responsibilities
+### `handle_events(...)`
+Routes user input to the correct systems, such as:
+- gameplay interaction
+- selection
+- minimap interaction
+- UI panels
+- targeting flow
 
-#### `handle_events(...)`
-Receives input events and routes them to the correct runtime/UI systems.
+### `update()`
+Advances the simulation, such as:
+- economy progression
+- camera movement
+- combat state
+- selection synchronization
+- interface updates
 
-#### `update()`
-Advances the simulation:
-- economy
-- camera
-- combat
-- selection-related state
-- interface-related updates
-
-#### `render()`
-Draws the current frame:
-- world
+### `render()`
+Draws the current frame, such as:
+- visible world
 - selected object overlays
-- combat effects
+- projectiles and impact effects
 - minimap
-- interface panels
-- credits/UI details
+- gameplay interface
+- credits and selected-object information
 
 ---
 
 ## Core runtime systems
 
 ### `Game`
-The orchestrator of the main gameplay screen.
+The orchestrator of the active match.
 
-It should remain focused on:
-- high-level flow
-- coordination between systems
-- frame lifecycle
-- keeping the gameplay screen readable
-
-`Game` should not become a large dumping ground for unrelated gameplay logic again.
+Its role is to keep the frame flow readable and coordinate the runtime without becoming a monolithic owner of every rule again.
 
 ---
 
 ### `GameWorld`
-Owns the state of the playable world.
+Owns the playable world state.
 
 Typical responsibilities:
 - map loading
 - tile data
-- world dimensions
-- map surface/cache
+- map dimensions
 - world objects
 - spatial grid
-- object lookup helpers
-- destroyed object cleanup
-- resource respawn logic when applicable
-
-This is the closest thing to the runtime's "world state owner".
+- world lookup helpers
+- destroyed-object cleanup
+- resource respawn behavior when needed
+- world rendering
 
 ---
 
 ### `GameCamera`
-Owns the gameplay camera.
+Owns camera behavior.
 
 Typical responsibilities:
 - camera position
 - scroll movement
-- world centering
-- visible region updates
-- world/screen related camera calculations
-
-The minimap is intentionally separate from camera logic.
+- centering on world positions
+- visible region calculations
+- camera-related screen/world conversions
 
 ---
 
@@ -140,10 +160,10 @@ Owns the minimap as a game-specific interface element.
 Typical responsibilities:
 - minimap rendering
 - viewport rectangle rendering
-- click/drag interaction
+- click and drag interaction
 - minimap-to-world translation
 
-Although it is visual, it is tightly coupled to the current match and therefore belongs to the game runtime layer rather than generic UI.
+Although visual, it is tightly coupled to the current match and therefore belongs to the gameplay runtime layer rather than generic UI.
 
 ---
 
@@ -151,45 +171,38 @@ Although it is visual, it is tightly coupled to the current match and therefore 
 Owns object selection.
 
 Typical responsibilities:
-- current selected object
-- selecting objects by screen/world position
+- tracking the currently selected object
+- selecting by position
 - clearing selection
-- selection synchronization with the interface
-- selection overlay rendering
-
-Anything specifically about "what is selected" should live here rather than being scattered across the runtime.
+- synchronizing selection with the interface
+- rendering selection overlays
 
 ---
 
 ### `GameCombat`
-Owns combat-related runtime behavior.
+Owns combat behavior.
 
 Typical responsibilities:
 - active attacks
 - range checks
 - attack progression
-- projectile spawning
-- projectile updates
+- projectiles
+- projectile smoke
 - impact explosions
-- combat-oriented effects
 - builder creation flow tied to gameplay actions
 
-At the current stage of the project, missiles and impact effects are treated as part of combat rather than as a fully separate global effects system.
-
-That decision can be revisited later if the project gains many non-combat visual effects.
+At the current stage of development, missiles and impact effects are treated as part of combat rather than a separate global effects system.
 
 ---
 
 ### `GameEconomy`
-Owns credit/resource-like runtime economy behavior.
+Owns credit-related economy flow.
 
 Typical responsibilities:
-- current credit amount
+- current credits
 - periodic credit generation
-- economy queries such as affordability checks
-- economy-related UI rendering
-
-This keeps monetary logic out of unrelated systems.
+- affordability checks
+- economy-related interface rendering
 
 ---
 
@@ -200,79 +213,82 @@ Typical responsibilities:
 - bottom panel coordination
 - side/vertical panel coordination
 - selected object card integration
-- targeting-related UI coordination
-- routing interface clicks
-- rendering the gameplay HUD/panels
+- targeting-related interface coordination
+- interface click routing
+- gameplay HUD rendering
 
-This is intentionally different from generic UI widgets.  
-It is a game-screen-specific coordinator.
+This is intentionally different from generic reusable UI widgets.
 
 ---
 
 ### `GameObjectFactory`
-Centralizes creation of runtime object dictionaries.
+Centralizes object creation.
 
 Typical responsibilities:
-- build object data consistently
-- create map-loaded objects
-- create spawned objects
-- create builder-related objects
-- recreate/respawn resource objects when necessary
-
-This reduces duplication and makes object creation safer and more consistent.
+- creating map-loaded objects
+- creating spawned objects
+- builder-related creation
+- resource recreation/respawn when needed
+- keeping object dictionary creation consistent
 
 ---
 
 ## UI structure
 
-The project now distinguishes between:
+The current direction distinguishes between two things:
 
 ### 1. Game-specific interface coordination
-Handled by systems in `Core/Game`, especially `GameInterface` and `GameMinimap`.
+Handled in `Core/Game`, especially by:
+- `GameInterface`
+- `GameMinimap`
 
 ### 2. Reusable UI components
 Handled in `Core/UI`.
 
 This distinction matters because not every visual element is generic UI.
 
-For example:
+Examples:
 - a generic button belongs to reusable UI
-- a selected-object RTS action panel is game-specific UI
-- the minimap is UI, but it is deeply tied to the current match and therefore treated as part of the game runtime
+- a gameplay action panel is game-specific UI
+- the minimap is interface, but it is deeply tied to the current match and therefore treated as part of the game runtime
 
 ---
 
 ## Horizontal panel split
 
-The bottom gameplay panel was separated internally by responsibility so it is easier to understand and maintain.
+The lower gameplay panel was refactored internally by responsibility.
 
-Instead of one large panel file owning everything directly, the panel logic is now split into smaller parts such as:
+Instead of one large panel file owning everything directly, the bottom panel now relies on smaller pieces such as:
 
 - action grid
 - selection card
 - status bars
 
-This makes the code more readable without changing the visible behavior of the game.
+This preserved the visible behavior while improving code organization and readability.
 
 ---
 
 ## Runtime data model
 
-The current runtime still uses a **dict-based object model** for world entities.
+The current runtime still uses a **dict-based object model** for most world entities.
 
-That means units, buildings, and resources are primarily represented as dictionaries with fields such as position, type, health, metadata-derived properties, animation references, and identifiers.
+That means units, buildings, and resources are primarily represented by dictionaries containing information such as:
+- position
+- type
+- health
+- identifiers
+- animation references
+- metadata-derived properties
 
-This is intentional for now.
+This was kept intentionally.
 
 The refactor focused on:
 - architecture
-- organization
-- safety
 - readability
+- separation of responsibilities
+- safer expansion
 
-It did **not** force a risky migration of the entire runtime into a new entity class hierarchy.
-
-That kind of change can be reconsidered later only if it becomes clearly worth it.
+It did **not** force a risky migration to a full entity class hierarchy.
 
 ---
 
@@ -288,9 +304,63 @@ Core/
 ```
 
 ### Important note about `Editor`
-The `Editor` folder is intentionally treated as a separate tool and is not part of the gameplay runtime refactor.
+The `Editor` folder is intentionally treated as a separate tool and is outside the scope of the gameplay runtime refactor.
 
-When working on runtime architecture, the editor should be considered out of scope unless the task is specifically about the map editor.
+---
+
+## Installation
+
+### Prerequisites
+
+Before running the game, make sure you have:
+
+- Python 3.x
+- Pygame
+- any additional dependencies listed in `requirements.txt`, if present in your current branch/version
+
+### Install dependencies
+
+A typical setup flow is:
+
+```bash
+python -m venv venv
+venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+If your branch does not yet rely on `requirements.txt`, you can install Pygame directly:
+
+```bash
+pip install pygame
+```
+
+### Running the game
+
+From the project root, run:
+
+```bash
+python beyond_the_rings.py
+```
+
+If your local entry point differs in a specific branch, use that branch's main launcher accordingly.
+
+---
+
+## Gameplay
+
+### Objective
+
+The primary goal is to eliminate enemy structures while managing resources, expanding your base, and building the military strength needed to dominate the map.
+
+### Core loop
+
+1. **Select a faction**
+2. **Explore and secure territory**
+3. **Gather resources**
+4. **Construct structures**
+5. **Create units and expand**
+6. **Engage in combat**
+7. **Destroy enemy infrastructure and win the match**
 
 ---
 
@@ -300,27 +370,27 @@ This architecture makes the project easier to extend safely.
 
 Examples of future work that should now be easier to implement:
 - production queues
-- new weapon types such as lasers
-- hotkeys / keyboard shortcuts
+- additional weapon types such as lasers
+- hotkeys and keyboard shortcuts
 - improved targeting
-- better interface feedback
-- additional factions and unit types
+- richer feedback and HUD behavior
+- new factions and units
 - AI systems
 - fog of war
-- new map mechanics
+- more advanced map mechanics
 
-The main goal of the refactor was not to make the code "fancy".  
-It was to make the codebase easier to reason about and harder to break accidentally.
+The goal of the refactor was not to make the codebase look clever.  
+It was to make it easier to reason about, safer to change, and more practical for continued development.
 
 ---
 
 ## Development guidelines
 
-### Prefer composition over growing `Game`
-New gameplay systems should usually be introduced as dedicated collaborators rather than expanding `Game` into another monolith.
+### Prefer composition over regrowing a monolith
+New gameplay systems should usually be introduced as dedicated collaborators rather than pushed directly into `Game`.
 
 ### Keep `Game` readable
-`Game` should remain the place where a reader can quickly understand the frame flow.
+`Game` should remain the place where a reader can quickly understand the match lifecycle.
 
 ### Put logic where it belongs
 Examples:
@@ -330,65 +400,57 @@ Examples:
 - screen-specific HUD coordination in interface
 
 ### Avoid mixing gameplay rules into generic UI
-Reusable UI components should stay lightweight and general whenever possible.
+Reusable UI should stay lightweight and general whenever possible.
 
-### Refactor only when needed
-The architecture is now in a good enough state to support feature work.  
-Further large refactors should be driven by real needs, not by refactoring for its own sake.
-
----
-
-## Running the project
-
-Typical flow:
-
-1. Create and activate a Python virtual environment
-2. Install dependencies from `requirements.txt`
-3. Run the game entry point
-
-Example:
-
-```bash
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-python beyond_the_rings.py
-```
-
-Depending on your environment, activation commands may vary.
+### Refactor when a feature justifies it
+The architecture is now in a healthy enough state that feature development should lead, and refactors should happen only when real needs appear.
 
 ---
 
 ## Current status
 
-The codebase is now in a much healthier state for feature development.
+The project is now in a much stronger position for feature development than it was before the architecture refactor.
 
-That means the recommended path forward is:
+The recommended path forward is:
 
-- stop large-scale architectural refactoring for now
-- implement gameplay features from the backlog
-- only refactor locally when a new feature reveals a real design need
-
-This keeps momentum high without sacrificing maintainability.
-
----
-
-## Suggested next mindset for development
-
-Treat the current architecture as a stable baseline.
-
-From here, development can focus on:
-- new gameplay features
-- quality-of-life improvements
-- content expansion
-- controlled, need-driven refactors only when a concrete feature justifies them
+- focus on gameplay features from the backlog
+- improve quality-of-life systems
+- expand content
+- refactor locally only when a concrete feature justifies it
 
 ---
 
-## Summary
+## Contributing
 
-The current runtime architecture is centered on a simple principle:
+Contributions are welcome.
 
-**`Game` coordinates the match, while specialized systems own the details.**
+If you would like to contribute to **Beyond the Rings**, a good default flow is:
 
-That structure should make Beyond the Rings significantly easier to grow without losing control of the codebase.
+1. Fork the repository
+2. Create a branch for your change
+3. Implement and test your update
+4. Commit with a clear message
+5. Push your branch
+6. Open a pull request
+
+Please try to keep contributions aligned with the current architectural direction and coding style.
+
+---
+
+## License
+
+**Beyond the Rings** is open-source and released under the [MIT License](LICENSE).
+
+---
+
+## Contact
+
+If you have any questions, suggestions, or professional interest in the project, feel free to reach out:
+
+- Email: pedro@nancode.com.br
+- LinkedIn: [Pedro Martins Costa de Souza](https://www.linkedin.com/in/pedromartinscosta/)
+- GitHub / Portfolio: [pedromartinscs](https://github.com/pedromartinscs)
+
+---
+
+**Beyond the Rings** was built with ❤️ by [Pedro Martins Costa de Souza](https://github.com/pedromartinscs)
