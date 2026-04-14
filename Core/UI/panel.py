@@ -162,6 +162,16 @@ class Panel:
                 self.toggle()
                 return "panel_toggled"
 
+            queue_index = self.selection_card.get_queue_thumbnail_index_at_position(
+                self.current_y,
+                self.handle_height,
+                self.selected_object,
+                mouse_pos,
+            )
+            if queue_index is not None:
+                self.game.cancel_production_queue_item(self.selected_object, queue_index)
+                return "queue_item_removed"
+
             middle_x = self.middle_area_pos[0]
             middle_y = self.current_y + self.middle_area_pos[1]
             clicked_box = self.action_grid.get_clicked_box(mouse_pos, middle_x, middle_y)

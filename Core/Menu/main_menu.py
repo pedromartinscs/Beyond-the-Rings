@@ -21,7 +21,7 @@ class MainMenu(BaseScreen):
 
         # Initialize the mixer for playing music and sound effects
         pygame.mixer.init()  # Initialize the pygame mixer
-        self.music_file = "Music/bertsz__cyberpunk_dump.mp3"  # Path to the background music file
+        self.music_file = "Music/Beyond The Rings Main Menu_1.ogg"  # Path to the background music file
         if pygame.mixer.music.get_busy():
             current_song = pygame.mixer.music.get_pos()
             if current_song != self.music_file:

@@ -263,50 +263,6 @@ class GameCombat:
         else:
             pass
 
-    def handle_builder_unit_action(self, selected_object):
-        if not selected_object or selected_object['type'] != 'building' or selected_object['id'] != 0:
-            return
-
-        if not self.game.has_enough_credits(250):
-            print("Not enough credits to build a unit.")
-            return
-
-        if selected_object.get('charge_percent', 1.0) < 1.0:
-            print("Building is cooling down.")
-            return
-
-        hq_x, hq_y = selected_object['x'], selected_object['y']
-        excluded_tiles = {
-            (hq_x, hq_y),
-            (hq_x - 1, hq_y),
-            (hq_x + 1, hq_y),
-            (hq_x, hq_y + 1),
-        }
-
-        for dy in [-1, 0, 1]:
-            for dx in [-1, 0, 1]:
-                tile_x, tile_y = hq_x + dx, hq_y + dy
-                if (tile_x, tile_y) in excluded_tiles:
-                    continue
-
-                if not any(obj['x'] == tile_x and obj['y'] == tile_y for obj in self.game.objects):
-                    new_unit = self.game.object_factory.create_builder_unit(tile_x, tile_y)
-                    if not new_unit:
-                        print("Builder unit could not be created.")
-                        return
-
-                    self.game.objects.append(new_unit)
-                    self.game.game_world.add_object_to_grid(new_unit)
-                    self.game.camera_moved = True
-                    self.game.game_camera.update_visible_objects()
-                    self.game.remove_credits(250)
-                    selected_object['charge_percent'] = 0.0
-                    selected_object['last_charge_time'] = pygame.time.get_ticks()
-                    print("Builder unit created at", tile_x, tile_y)
-                    return
-
-        print("No valid tile found for builder unit.")
-
     def calculate_angle(self, start_x, start_y, target_x, target_y):
         dx = target_x - start_x
         dy = target_y - start_y

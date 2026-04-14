@@ -1,11 +1,13 @@
 import sys
 
 import pygame
+import random
 
 from Core.Game.animation_manager import AnimationManager
 from Core.Game.game_combat import GameCombat
 from Core.Game.game_economy import GameEconomy
 from Core.Game.game_object_factory import GameObjectFactory
+from Core.Game.game_production import GameProduction
 from Core.Game.game_selection import GameSelection
 from Core.Game.game_world import GameWorld
 from Core.Game.object_collection import ObjectCollection
@@ -14,7 +16,8 @@ from Core.Game.object_collection import ObjectCollection
 class GameStateMixin:
     def _initialize_audio(self):
         pygame.mixer.init()
-        self.music_file = "Music/__bertsz__cyberpunk_MULTI.mp3"
+        current_track = random.randint(1, 5)
+        self.music_file = f"Music/Beyond The Rings Ambience_{current_track}.ogg"
         if pygame.mixer.music.get_busy():
             pygame.mixer.music.stop()
         pygame.mixer.music.load(self.music_file)
@@ -31,6 +34,7 @@ class GameStateMixin:
 
     def _initialize_combat_state(self):
         self._combat = GameCombat(self)
+        self._production = GameProduction(self)
 
     def _initialize_input_state(self):
         self._selection = GameSelection(self)
@@ -46,6 +50,10 @@ class GameStateMixin:
     @property
     def game_selection(self):
         return self._selection
+
+    @property
+    def game_production(self):
+        return self._production
 
     @property
     def game_economy(self):
@@ -188,12 +196,21 @@ class GameStateMixin:
 
     def update_object_charge_bars(self, current_time):
         for obj in self.objects:
-            if obj.get('charge_percent', 1.0) < 1.0:
-                metadata = self.object_collection.get_object_metadata(obj['type'], obj['id'])
+            if obj.get('charge_percent', 1.0) >= 1.0:
+                continue
+
+            metadata = self.object_collection.get_object_metadata(obj['type'], obj['id'])
+            cooldown_duration = obj.get('charge_duration')
+            if cooldown_duration is None:
                 cooldown_duration = (
                     metadata.get('properties', {}).get('cooldown', 1000)
                     if metadata
                     else 1000
                 )
-                elapsed = current_time - obj.get('last_charge_time', 0)
-                obj['charge_percent'] = min(1.0, elapsed / cooldown_duration)
+
+            if cooldown_duration <= 0:
+                obj['charge_percent'] = 1.0
+                continue
+
+            elapsed = current_time - obj.get('last_charge_time', 0)
+            obj['charge_percent'] = min(1.0, elapsed / cooldown_duration)

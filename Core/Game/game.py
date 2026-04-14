@@ -61,6 +61,7 @@ class Game(BaseScreen, GameStateMixin):
         self._camera.update_edge_scroll(mouse_pos)
         self._combat.update_attacks()
         self.update_object_charge_bars(current_time)
+        self._production.update()
         self._combat.update_effects()
 
         next_screen = self.handle_next_action()
@@ -191,4 +192,7 @@ class Game(BaseScreen, GameStateMixin):
             pygame.display.update(self.dirty_rects)
 
     def handle_builder_unit_action(self, selected_object):
-        self._combat.handle_builder_unit_action(selected_object)
+        self._production.enqueue_builder_unit(selected_object)
+
+    def cancel_production_queue_item(self, selected_object, queue_index):
+        return self._production.cancel_queue_item(selected_object, queue_index)

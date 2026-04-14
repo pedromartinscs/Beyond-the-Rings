@@ -49,6 +49,7 @@ class GameObjectFactory:
         if not sprite_image:
             return None
 
+        properties = metadata.get('properties', {})
         visuals = metadata.get('visuals', {})
 
         return {
@@ -56,12 +57,12 @@ class GameObjectFactory:
             'y': y,
             'type': unit_type,
             'id': unit_id,
-            'health': metadata.get('health', 100),
-            'max_health': metadata.get('health', 100),
-            'z_index': 1,
+            'health': properties.get('health', 100),
+            'max_health': properties.get('health', 100),
+            'z_index': properties.get('z_index', 1),
             'image': sprite_image,
             'offset': 32,
-            'damage': metadata.get('damage', 0),
+            'damage': properties.get('damage', 0),
             'name': metadata.get('name', 'Builder'),
             'animation_speed': visuals.get('animation_speed', 0),
             'frames': visuals.get('frames', 1),
